@@ -1,0 +1,15 @@
+{
+  "name": "auto-job-outreach-assistant",
+  "version": "1.0.0",
+  "description": "Auto-Job Outreach Assistant SaaS",
+  "private": true,
+  "scripts": {
+    "install:all": "npm install --prefix backend && npm install --prefix frontend --legacy-peer-deps",
+    "dev:backend": "npm run dev --prefix backend",
+    "dev:frontend": "npm run dev --prefix frontend",
+    "dev": "npx.cmd concurrently --kill-others \"npm run dev:backend\" \"npm run dev:frontend\""
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  }
+}
