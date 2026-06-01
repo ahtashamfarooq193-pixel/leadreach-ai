@@ -14,5 +14,5 @@ export const config = {
   databasePath: process.env.DATABASE_PATH || 'database.sqlite',
   mongodbUri: process.env.MONGODB_URI || null,
   jwtSecret: process.env.JWT_SECRET || 'saas_outreach_secret_key_12345',
-  skipMongoDB: process.env.SKIP_MONGODB === 'true' || process.env.NODE_ENV === 'production',
+  skipMongoDB: process.env.SKIP_MONGODB === 'true',
 };

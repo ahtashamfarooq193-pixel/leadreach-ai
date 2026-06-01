@@ -15,8 +15,54 @@ import { config } from './config/index.js';
 import scraperRoutes from '../scraperRoutes.js';
 
 const app = express();
-app.use(cors());
+
+const corsOrigins = [
+  process.env.FRONTEND_URL,
+  'http://localhost:5173',
+  'http://localhost:3000',
+].filter(Boolean);
+
+app.use(
+  cors({
+    origin(origin, callback) {
+      if (!origin) return callback(null, true);
+      if (
+        corsOrigins.includes(origin) ||
+        /^https:\/\/[\w.-]+\.vercel\.app$/.test(origin)
+      ) {
+        return callback(null, true);
+      }
+      callback(new Error('Not allowed by CORS'));
+    },
+    credentials: true,
+  })
+);
 app.use(express.json());
+
+app.get('/api/health', (req, res) => {
+  res.json({
+    ok: true,
+    db: mongoose.connection.readyState === 1 ? 'connected' : 'offline',
+    environment: config.nodeEnv,
+  });
+});
+
+// Ensure MongoDB is connected on Vercel serverless (cold starts)
+let vercelDbPromise = null;
+app.use(async (req, res, next) => {
+  if (
+    process.env.VERCEL &&
+    !config.skipMongoDB &&
+    config.mongodbUri &&
+    mongoose.connection.readyState !== 1
+  ) {
+    if (!vercelDbPromise) {
+      vercelDbPromise = connectDB();
+    }
+    await vercelDbPromise.catch(() => {});
+  }
+  next();
+});
 
 // 🔧 Mount scraper routes
 app.use('/api', scraperRoutes);
