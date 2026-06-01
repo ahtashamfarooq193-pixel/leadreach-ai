@@ -1,6 +1,8 @@
 import express from 'express';
 import cors from 'cors';
 import jwt from 'jsonwebtoken';
+import crypto from 'crypto';
+import Parser from 'rss-parser';
 import { connectDB } from './db/mongodb.js';
 import { User, Settings, Job, LocalLead, OutreachLog, LoginLog, mongoose } from './models/index.js';
 import { requireAuth } from './middleware/auth.js';
@@ -10,10 +12,14 @@ import { sendOutreachEmail, testSMTPConnection, getDailyOutreachStats } from './
 import { searchLocalLeads, scrapeBusinessContacts } from './services/localScraper.js';
 import { startScheduler, runUserAutomation } from './scheduler.js';
 import { config } from './config/index.js';
+import scraperRoutes from '../scraperRoutes.js';
 
 const app = express();
 app.use(cors());
 app.use(express.json());
+
+// 🔧 Mount scraper routes
+app.use('/api', scraperRoutes);
 
 // ----------------------------------------------------
 // Local In-Memory Store for MongoDB Offline Fallback
@@ -101,7 +107,7 @@ let mockLeadsList = [
 let mockLogsList = [];
 
 // Fallback Middleware to process requests in-memory if MongoDB is down
-app.use((req, res, next) => {
+app.use(async (req, res, next) => {
   if (mongoose.connection.readyState !== 1 && req.path.startsWith('/api/')) {
     console.log(`[Database Offline] Mocking response for: ${req.method} ${req.path}`);
     
@@ -158,23 +164,172 @@ app.use((req, res, next) => {
     }
 
     if (req.path === '/api/jobs/fetch') {
-      const newJobs = [
-        {
-          id: 'job-mock-' + (mockJobsList.length + 1),
-          title: 'Full Stack Developer',
-          company: 'NextGen Solutions',
-          url: 'https://example.com/job' + (mockJobsList.length + 1),
-          company_url: 'https://nextgensol.com',
-          email: 'careers@nextgensol.com',
-          description: 'We are seeking a developer with React, Node.js and WordPress knowledge to join our team.',
-          platform: 'RemoteOK',
-          posted_at: new Date(),
-          status: 'pending',
-          customized_pitch: ''
+      // REAL job fetching - connect to live job APIs
+      try {
+        console.log('[Offline Mode] Fetching REAL jobs from live APIs...');
+        const parser = new Parser({
+          headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' }
+        });
+
+        let realJobs = [];
+        const keywords = 'React, Node.js, JavaScript, WordPress, Flutter, HTML, CSS, Python, TypeScript, Developer';
+
+        function matchesKeywords(text) {
+          const keywordArray = keywords.split(',').map(k => k.trim().toLowerCase());
+          return keywordArray.some(kw => text.toLowerCase().includes(kw));
         }
-      ];
-      mockJobsList = [...newJobs, ...mockJobsList];
-      return res.json({ success: true, stats: { matchedAndScreened: 1 }, message: 'Fetched 1 mock job.' });
+
+        // Fetch from WeWorkRemotely RSS
+        try {
+          const feed = await parser.parseURL('https://weworkremotely.com/remote-jobs.rss');
+          for (const item of feed.items.slice(0, 20)) {
+            const title = item.title?.split(':')[1]?.trim() || item.title;
+            if (matchesKeywords(title || '')) {
+              realJobs.push({
+                id: crypto.createHash('md5').update(item.link).digest('hex'),
+                title,
+                company: item.title?.split(':')[0]?.trim() || 'WeWork Client',
+                url: item.link,
+                platform: 'WeWorkRemotely',
+                description: (item.content || item.contentSnippet || '').substring(0, 300),
+                posted_at: new Date(item.pubDate),
+                email: ''
+              });
+            }
+          }
+        } catch (e) {
+          console.log('[WeWorkRemotely] Error:', e.message);
+        }
+
+        // Fetch from RemoteOK API
+        try {
+          const res = await fetch('https://remoteok.com/api');
+          const data = await res.json();
+          for (const job of (data || []).slice(1, 30)) {
+            if (matchesKeywords(job.position || '')) {
+              realJobs.push({
+                id: crypto.createHash('md5').update(job.url).digest('hex'),
+                title: job.position,
+                company: job.company || 'Remote Company',
+                url: job.url,
+                platform: 'RemoteOK',
+                description: (job.description || '').substring(0, 300),
+                posted_at: new Date(job.date),
+                email: ''
+              });
+            }
+          }
+        } catch (e) {
+          console.log('[RemoteOK] Error:', e.message);
+        }
+
+        // Fetch from Remotive API
+        try {
+          const res = await fetch('https://remotive.com/api/remote-jobs?limit=50');
+          const data = await res.json();
+          for (const job of (data?.jobs || []).slice(0, 30)) {
+            if (matchesKeywords(job.title || '')) {
+              realJobs.push({
+                id: crypto.createHash('md5').update(job.url).digest('hex'),
+                title: job.title,
+                company: job.company_name || 'Tech Company',
+                url: job.url,
+                platform: 'Remotive',
+                description: (job.description || '').substring(0, 300),
+                posted_at: new Date(job.published_at),
+                email: ''
+              });
+            }
+          }
+        } catch (e) {
+          console.log('[Remotive] Error:', e.message);
+        }
+
+        // Fetch from Web3 Jobs RSS
+        try {
+          const feed = await parser.parseURL('https://web3.career/feed');
+          for (const item of feed.items.slice(0, 20)) {
+            if (matchesKeywords(item.title || '')) {
+              realJobs.push({
+                id: crypto.createHash('md5').update(item.link).digest('hex'),
+                title: item.title,
+                company: item.author || 'Web3 Company',
+                url: item.link,
+                platform: 'Web3.Career',
+                description: (item.content || item.contentSnippet || '').substring(0, 300),
+                posted_at: new Date(item.pubDate),
+                email: ''
+              });
+            }
+          }
+        } catch (e) {
+          console.log('[Web3.Career] Error:', e.message);
+        }
+
+        // Fetch from Cryptocurrency Jobs
+        try {
+          const feed = await parser.parseURL('https://cryptocurrencyjobs.co/rss/');
+          for (const item of feed.items.slice(0, 20)) {
+            if (matchesKeywords(item.title || '')) {
+              realJobs.push({
+                id: crypto.createHash('md5').update(item.link).digest('hex'),
+                title: item.title,
+                company: item.author || 'Crypto Company',
+                url: item.link,
+                platform: 'Crypto Jobs',
+                description: (item.content || item.contentSnippet || '').substring(0, 300),
+                posted_at: new Date(item.pubDate),
+                email: ''
+              });
+            }
+          }
+        } catch (e) {
+          console.log('[Crypto Jobs] Error:', e.message);
+        }
+
+        // Remove duplicates and limit results
+        const uniqueJobs = [];
+        const seen = new Set();
+        for (const job of realJobs) {
+          if (!seen.has(job.url)) {
+            seen.add(job.url);
+            // Add required fields for frontend
+            job.status = 'pending';
+            job.customized_pitch = '';
+            job.company_url = job.company_url || job.url;
+            uniqueJobs.push(job);
+          }
+        }
+
+        // Store real jobs in memory so /api/jobs returns them
+        mockJobsList = uniqueJobs;
+
+        console.log(`[Offline Mode] Found ${uniqueJobs.length} real jobs`);
+        return res.json({
+          success: true,
+          jobs: uniqueJobs,
+          stats: {
+            totalFetched: realJobs.length,
+            duplicatesSkipped: realJobs.length - uniqueJobs.length,
+            matchedAndScreened: uniqueJobs.length,
+            savedToDb: uniqueJobs.length
+          },
+          message: `✅ Fetched ${uniqueJobs.length} REAL jobs from live APIs`
+        });
+      } catch (error) {
+        console.error('[Offline Mode] Job fetch error:', error.message);
+        return res.json({
+          success: true,
+          jobs: [],
+          stats: {
+            totalFetched: 0,
+            duplicatesSkipped: 0,
+            matchedAndScreened: 0,
+            savedToDb: 0
+          },
+          message: 'Job APIs temporarily unavailable'
+        });
+      }
     }
 
     if (req.path === '/api/jobs/run-automation') {
@@ -191,7 +346,11 @@ app.use((req, res, next) => {
 
       if (action === 'extract-email') {
         if (job) {
-          job.email = job.email || 'direct-contact@' + job.company.toLowerCase().replace(/[^a-z0-9]/g, '') + '.com';
+          // Don't generate fake emails - if we can't find one, leave it empty
+          // User will see "Email not found" instead of a fake address
+          if (!job.email) {
+            job.email = null;  // Explicitly null, not a generated fake
+          }
           job.company_url = job.company_url || 'https://' + job.company.toLowerCase().replace(/[^a-z0-9]/g, '') + '.com';
         }
         return res.json(job || {});
@@ -228,26 +387,8 @@ ${mockSettingsObj.sender_name}`;
         return res.json({ success: true });
       }
       
-      if (action === 'send-email') {
-        const { recipientEmail, subject, body } = req.body;
-        if (job) {
-          job.status = 'applied';
-          job.customized_pitch = body;
-        }
-        mockLogsList.unshift({
-          _id: 'log-' + (mockLogsList.length + 1),
-          job_id: id,
-          recipient_email: recipientEmail,
-          subject: subject,
-          body: body,
-          status: 'success',
-          sent_at: new Date(),
-          title: job ? job.title : 'React Developer',
-          company: job ? job.company : 'Tech Solutions Inc.',
-          url: job ? job.url : ''
-        });
-        return res.json({ success: true, message: 'Mock email outreach sent.' });
-      }
+      // Email sending moved to real endpoint handler below (/api/jobs/:id/send-email)
+      // This allows the middleware to pass through to the real handler
     }
 
     // 5. Local Leads Endpoints
@@ -256,24 +397,95 @@ ${mockSettingsObj.sender_name}`;
     }
 
     if (req.path === '/api/local-leads/search') {
-      const { niche, location } = req.body;
-      const newLead = {
-        id: 'lead-mock-' + (mockLeadsList.length + 1),
-        name: 'Chicago ' + niche + ' Hub',
-        niche: niche || 'Dentist',
-        location: location || 'Cook County, IL',
-        website: 'https://chicagoplaces.com',
-        phone: '312-555-0211',
-        whatsapp: '',
-        email: '',
-        rating: 4.8,
-        reviews_count: 57,
-        status: 'active',
-        outreach_status: 'pending',
-        customized_pitch: ''
-      };
-      mockLeadsList = [newLead, ...mockLeadsList];
-      return res.json({ success: true, savedCount: 1, leads: mockLeadsList.filter(l => l.niche === niche && l.location === location) });
+      try {
+        const { niche, location } = req.body;
+        
+        // Import the mock leads function (redefine it inline for offline mode)
+        const mockBusinessDatabase = {
+          'dentist': {
+            'Los Angeles County, CA': [
+              { name: 'Downtown Dental Care', phone: '(213) 555-0101', website: 'https://downtowndental.com', rating: 4.8, reviews: 245 },
+              { name: 'Beverly Hills Smile Studio', phone: '(310) 555-0202', website: 'https://bhsmilestudio.com', rating: 4.7, reviews: 189 },
+              { name: 'Santa Monica Family Dentistry', phone: '(424) 555-0303', website: 'https://smfamilydental.com', rating: 4.9, reviews: 312 },
+              { name: 'Long Beach Dental Wellness', phone: '(562) 555-0404', website: 'https://lbdentalwellness.com', rating: 4.6, reviews: 167 },
+              { name: 'Pasadena Cosmetic Dentists', phone: '(626) 555-0505', website: 'https://pasadenacosmetic.com', rating: 4.8, reviews: 278 },
+              { name: 'West LA Dental Excellence', phone: '(310) 555-0606', website: 'https://westladental.com', rating: 4.7, reviews: 201 },
+              { name: 'Torrance Advanced Dental', phone: '(310) 555-0707', website: 'https://torrancedental.com', rating: 4.5, reviews: 134 },
+              { name: 'Glendale Modern Dentistry', phone: '(818) 555-0808', website: 'https://glendaledentalcare.com', rating: 4.9, reviews: 298 },
+              { name: 'Inglewood Smile Center', phone: '(424) 555-0909', website: 'https://inglewoodsmile.com', rating: 4.6, reviews: 156 },
+              { name: 'Culver City Dental Group', phone: '(310) 555-1010', website: 'https://culvercitydental.com', rating: 4.8, reviews: 223 },
+              { name: 'Manhattan Beach Family Dental', phone: '(310) 555-1111', website: 'https://mbfamilydental.com', rating: 4.7, reviews: 187 },
+              { name: 'Redondo Beach Dental Practice', phone: '(310) 555-1212', website: 'https://redondobeachdental.com', rating: 4.8, reviews: 267 },
+            ],
+            'Chicago, IL': [
+              { name: 'Chicago Downtown Dental', phone: '(312) 555-2001', website: 'https://chicagodowntowndental.com', rating: 4.7, reviews: 234 },
+              { name: 'North Shore Smile Specialists', phone: '(847) 555-2002', website: 'https://northshoresmile.com', rating: 4.8, reviews: 289 },
+              { name: 'Loop Dental Excellence', phone: '(312) 555-2003', website: 'https://loopdentalexcellence.com', rating: 4.6, reviews: 178 },
+              { name: 'Naperville Advanced Dentistry', phone: '(630) 555-2004', website: 'https://napervilledental.com', rating: 4.9, reviews: 312 },
+              { name: 'Evanston Family Dentists', phone: '(847) 555-2005', website: 'https://evanstondentalcare.com', rating: 4.7, reviews: 201 },
+            ]
+          },
+          'plumber': {
+            'Los Angeles County, CA': [
+              { name: 'LA Pro Plumbing Services', phone: '(213) 555-3001', website: 'https://laproplumbing.com', rating: 4.8, reviews: 267 },
+              { name: 'Emergency 24/7 Plumbing LA', phone: '(323) 555-3002', website: 'https://emergency247plumbing.com', rating: 4.6, reviews: 145 },
+              { name: 'Santa Monica Plumbing Experts', phone: '(424) 555-3003', website: 'https://smplumbingexperts.com', rating: 4.9, reviews: 298 },
+              { name: 'Long Beach Master Plumbers', phone: '(562) 555-3004', website: 'https://lbmasterplumbers.com', rating: 4.7, reviews: 212 },
+              { name: 'Pasadena Rooter & Plumbing', phone: '(626) 555-3005', website: 'https://pasadenarooter.com', rating: 4.8, reviews: 256 },
+              { name: 'West LA Pipe Specialists', phone: '(310) 555-3006', website: 'https://westlapipe.com', rating: 4.6, reviews: 189 },
+            ]
+          },
+          'electrician': {
+            'Los Angeles County, CA': [
+              { name: 'LA Licensed Electric Co', phone: '(213) 555-4001', website: 'https://lalicensedelectric.com', rating: 4.8, reviews: 289 },
+              { name: 'South Bay Electrical Services', phone: '(310) 555-4002', website: 'https://southbayelectric.com', rating: 4.7, reviews: 234 },
+              { name: 'Santa Monica Power Solutions', phone: '(424) 555-4003', website: 'https://smpowersolutions.com', rating: 4.9, reviews: 267 },
+              { name: 'Long Beach Electrical Experts', phone: '(562) 555-4004', website: 'https://lbelectricalexperts.com', rating: 4.6, reviews: 156 },
+              { name: 'Pasadena Master Electricians', phone: '(626) 555-4005', website: 'https://pasadenamasterelectric.com', rating: 4.8, reviews: 278 },
+            ]
+          }
+        };
+        
+        const nicheKey = (niche || '').toLowerCase().trim();
+        const locationKey = location ? location.trim() : '';
+        
+        let results = [];
+        
+        // Try exact match first
+        if (mockBusinessDatabase[nicheKey] && mockBusinessDatabase[nicheKey][locationKey]) {
+          const businesses = mockBusinessDatabase[nicheKey][locationKey];
+          results = businesses.map(biz => ({
+            id: crypto.createHash('md5').update(biz.name + biz.website).digest('hex').substring(0, 12),
+            name: biz.name,
+            niche: niche || 'Business',
+            location: location || 'USA',
+            website: biz.website,
+            phone: biz.phone,
+            whatsapp: '',
+            email: '',
+            rating: biz.rating,
+            reviews_count: biz.reviews,
+            status: 'active',
+            outreach_status: 'pending',
+            customized_pitch: ''
+          }));
+        }
+        
+        // Add to mock leads list
+        mockLeadsList = [...results, ...mockLeadsList.filter(l => l.niche !== niche || l.location !== location)];
+        
+        const filteredLeads = mockLeadsList.filter(l => l.niche === niche && l.location === location);
+        
+        console.log(`✅ B2B Search returned ${filteredLeads.length} leads for "${niche}" in "${location}" (Offline Mode)`);
+        return res.json({ 
+          success: true, 
+          savedCount: filteredLeads.length, 
+          leads: filteredLeads 
+        });
+      } catch (err) {
+        console.error('Local leads search error:', err.message);
+        return res.json({ success: false, error: err.message, leads: [] });
+      }
     }
 
     if (req.path.startsWith('/api/local-leads/')) {
@@ -285,11 +497,8 @@ ${mockSettingsObj.sender_name}`;
       const lead = leadIdx !== -1 ? mockLeadsList[leadIdx] : null;
 
       if (action === 'scrape') {
-        if (lead) {
-          lead.email = 'hello@' + lead.name.toLowerCase().replace(/[^a-z0-9]/g, '') + '.com';
-          lead.whatsapp = lead.phone || '312-555-0211';
-        }
-        return res.json(lead || {});
+        // Scrape action moved to real endpoint handler below (/api/local-leads/:id/scrape)
+        // This allows real website scraping instead of returning fake data
       }
 
       if (action === 'pitch') {
@@ -317,27 +526,8 @@ ${mockSettingsObj.sender_name}`;
         return res.json({ success: true });
       }
 
-      if (action === 'send-outreach') {
-        const { recipientEmail, subject, body } = req.body;
-        if (lead) {
-          lead.outreach_status = 'emailed';
-          lead.customized_pitch = body;
-          lead.email = recipientEmail;
-        }
-        mockLogsList.unshift({
-          _id: 'log-' + (mockLogsList.length + 1),
-          job_id: null,
-          recipient_email: recipientEmail,
-          subject: subject,
-          body: body,
-          status: 'success',
-          sent_at: new Date(),
-          title: lead ? lead.name : 'B2B Outreach',
-          company: 'Local Business',
-          url: lead ? lead.website : ''
-        });
-        return res.json({ success: true, message: 'Mock cold outreach email sent.' });
-      }
+      // B2B lead email sending moved to real endpoint handler below (/api/local-leads/:id/send-outreach)
+      // This allows the middleware to pass through to the real handler
     }
   }
   next();
@@ -986,29 +1176,68 @@ app.post('/api/local-leads/search', requireAuth, async (req, res) => {
 
 app.post('/api/local-leads/:id/scrape', requireAuth, async (req, res) => {
   try {
-    const lead = await LocalLead.findOne({ id: req.params.id, userId: req.user._id });
+    const leadId = req.params.id;
+    
+    // Try to find lead in database with timeout
+    let lead = null;
+    const dbTimeoutPromise = new Promise((_, reject) => 
+      setTimeout(() => reject(new Error('Database timeout')), 2000)
+    );
+    
+    try {
+      const dbPromise = LocalLead.findOne({ id: leadId, userId: req.user._id });
+      lead = await Promise.race([dbPromise, dbTimeoutPromise]);
+    } catch (dbErr) {
+      console.log('⚠️  Could not query database, checking mock data');
+      // Fallback to mock data if DB is offline
+      lead = mockLeadsList.find(l => l.id === leadId);
+    }
+    
     if (!lead) {
       return res.status(404).json({ error: 'B2B Lead not found' });
     }
     
+    // Scrape the website for contacts
+    console.log(`📧 Scraping ${lead.website} for contact info...`);
     const contacts = await scrapeBusinessContacts(lead.website);
     
-    const updatedLead = await LocalLead.findOneAndUpdate(
-      { id: req.params.id, userId: req.user._id },
-      {
-        email: contacts.email,
-        phone: lead.phone || contacts.phone,
-        whatsapp: contacts.whatsapp || lead.whatsapp,
-        instagram_url: contacts.instagram,
-        facebook_url: contacts.facebook,
-        needs_optimization: contacts.needs_optimization || 0,
-        optimization_reasons: contacts.optimization_reasons || ''
-      },
-      { new: true }
-    );
+    // Update lead with scraped contact info
+    const updatedLead = {
+      ...lead,
+      email: contacts.email || lead.email,
+      phone: lead.phone || contacts.phone,
+      whatsapp: contacts.whatsapp || lead.whatsapp,
+      instagram_url: contacts.instagram || lead.instagram,
+      facebook_url: contacts.facebook || lead.facebook,
+      needs_optimization: contacts.needs_optimization || 0,
+      optimization_reasons: contacts.optimization_reasons || ''
+    };
+    
+    // Try to update database but don't fail if it's offline
+    try {
+      const dbUpdatePromise = LocalLead.findOneAndUpdate(
+        { id: leadId, userId: req.user._id },
+        updatedLead,
+        { new: true }
+      );
+      const dbTimeoutPromise2 = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Database timeout')), 2000)
+      );
+      await Promise.race([dbUpdatePromise, dbTimeoutPromise2]);
+    } catch (dbErr) {
+      console.log('⚠️  Could not update database, returning scraped data only');
+      // Database is offline, just return the scraped data
+    }
+    
+    // Update mock data if using offline mode
+    const mockIdx = mockLeadsList.findIndex(l => l.id === leadId);
+    if (mockIdx !== -1) {
+      mockLeadsList[mockIdx] = updatedLead;
+    }
     
     res.json(updatedLead);
   } catch (err) {
+    console.error('Scrape error:', err.message);
     res.status(500).json({ error: err.message });
   }
 });
@@ -1075,11 +1304,54 @@ app.post('/api/local-leads/:id/send-outreach', requireAuth, async (req, res) => 
 
 // Connect to Database and Start Server
 async function startServer() {
-  await connectDB();
-  app.listen(PORT, () => {
-    console.log(`Server is running in ${config.nodeEnv} mode on port ${PORT}`);
-    startScheduler();
+  console.log(`\n🚀 Starting Auto-Outreach Backend Server...`);
+  console.log(`📍 Environment: ${config.nodeEnv}`);
+  console.log(`🔗 MongoDB URI: ${config.mongodbUri}`);
+  
+  try {
+    await connectDB();
+  } catch (err) {
+    console.error('⚠️  MongoDB connection failed, running in offline mode');
+  }
+  
+  const server = app.listen(PORT, () => {
+    console.log(`\n✅ Server is running in ${config.nodeEnv} mode`);
+    console.log(`🌐 Listening on: http://localhost:${PORT}`);
+    console.log(`\n📝 Available Endpoints:`);
+    console.log(`   - POST   /api/auth/signup`);
+    console.log(`   - POST   /api/auth/login`);
+    console.log(`   - GET    /api/jobs (Protected)`);
+    console.log(`   - POST   /api/local-leads/search (Protected)`);
+    console.log(`   - POST   /api/local-leads/:id/scrape (Protected) ← Email scraping`);
+    console.log(`\n`);
+    
+    // Only start scheduler in production or long-running environments
+    if (config.nodeEnv === 'production' && process.env.DEPLOYMENT !== 'vercel') {
+      startScheduler();
+    }
+  });
+  
+  return server;
+}
+
+// Handle graceful shutdown
+process.on('SIGTERM', () => {
+  console.log('SIGTERM signal received: closing HTTP server');
+  process.exit(0);
+});
+
+process.on('SIGINT', () => {
+  console.log('SIGINT signal received: closing HTTP server');
+  process.exit(0);
+});
+
+// Start server if not in Vercel serverless environment
+if (!process.env.VERCEL) {
+  startServer().catch(err => {
+    console.error('Fatal error during startup:', err);
+    process.exit(1);
   });
 }
 
-startServer();
+// Export app for Vercel serverless
+export default app;

@@ -21,7 +21,19 @@ import {
   FileCheck
 } from 'lucide-react';
 
-const API_BASE = 'http://localhost:5000/api';
+// Determine API base URL
+const getApiBase = () => {
+  // Check for environment variable first (set by Vercel/build)
+  if (import.meta.env.VITE_API_URL) {
+    return import.meta.env.VITE_API_URL;
+  }
+  // Fallback to localhost for development
+  return 'http://localhost:5000/api';
+};
+
+const API_BASE = getApiBase();
+
+console.log('🔗 Using API Base URL:', API_BASE);
 
 // Global Fetch Interceptor to automatically add JWT headers
 const originalFetch = window.fetch;
