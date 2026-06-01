@@ -12,6 +12,7 @@ export const config = {
   port: process.env.PORT || 5000,
   nodeEnv: process.env.NODE_ENV || 'development',
   databasePath: process.env.DATABASE_PATH || 'database.sqlite',
-  mongodbUri: process.env.MONGODB_URI || 'mongodb://localhost:27017/auto-outreach-saas',
+  mongodbUri: process.env.MONGODB_URI || null,
   jwtSecret: process.env.JWT_SECRET || 'saas_outreach_secret_key_12345',
+  skipMongoDB: process.env.SKIP_MONGODB === 'true' || process.env.NODE_ENV === 'production',
 };

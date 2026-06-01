@@ -1306,12 +1306,16 @@ app.post('/api/local-leads/:id/send-outreach', requireAuth, async (req, res) => 
 async function startServer() {
   console.log(`\n🚀 Starting Auto-Outreach Backend Server...`);
   console.log(`📍 Environment: ${config.nodeEnv}`);
-  console.log(`🔗 MongoDB URI: ${config.mongodbUri}`);
+  console.log(`🔗 MongoDB: ${config.skipMongoDB ? '⏭️ SKIPPED (Mock Data Mode)' : config.mongodbUri}`);
   
-  try {
-    await connectDB();
-  } catch (err) {
-    console.error('⚠️  MongoDB connection failed, running in offline mode');
+  if (!config.skipMongoDB) {
+    try {
+      await connectDB();
+    } catch (err) {
+      console.error('⚠️  MongoDB connection failed, running in offline mode');
+    }
+  } else {
+    console.log('✅ Running with Mock Data (No MongoDB Connection)');
   }
   
   const server = app.listen(PORT, () => {
