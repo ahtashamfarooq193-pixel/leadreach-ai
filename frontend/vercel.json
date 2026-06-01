@@ -1,10 +1,18 @@
 {
+  "installCommand": "npm install --legacy-peer-deps && npm install --prefix ../backend",
   "buildCommand": "npm run build",
   "outputDirectory": "dist",
   "framework": "vite",
+  "functions": {
+    "api/**/*.js": {
+      "maxDuration": 60,
+      "memory": 1024,
+      "includeFiles": "../backend/**"
+    }
+  },
   "rewrites": [
     {
-      "source": "/((?!assets/).*)",
+      "source": "/((?!api/|assets/).*)",
       "destination": "/index.html"
     }
   ]

@@ -16,6 +16,17 @@ import scraperRoutes from '../scraperRoutes.js';
 
 const app = express();
 
+// Vercel serverless may pass /health instead of /api/health
+if (process.env.VERCEL) {
+  app.use((req, res, next) => {
+    const url = req.url || '';
+    if (!url.startsWith('/api')) {
+      req.url = '/api' + (url.startsWith('/') ? url : `/${url}`);
+    }
+    next();
+  });
+}
+
 const corsOrigins = [
   process.env.FRONTEND_URL,
   'http://localhost:5173',
