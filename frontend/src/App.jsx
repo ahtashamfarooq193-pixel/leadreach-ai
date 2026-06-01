@@ -648,11 +648,26 @@ export default function App() {
     setLoading(true);
     try {
       const res = await fetch(`${API_BASE}/jobs/fetch`, { method: 'POST' });
-      if (res.ok) {
-        const data = await res.json();
-        alert(`Successfully fetched jobs! Match Stats: Matched ${data.stats.matchedAndScreened} new fresh job listings.`);
-        fetchStats();
-        fetchJobsList(jobFilter);
+      const contentType = res.headers.get('content-type') || '';
+      if (!contentType.includes('application/json')) {
+        throw new Error('Server returned invalid response. Try redeploying Vercel.');
+      }
+      const data = await res.json();
+      if (res.ok && data.success !== false) {
+        const fetched = Array.isArray(data.jobs) ? data.jobs : [];
+        if (fetched.length > 0) {
+          const visible = fetched.filter((j) => j.status === jobFilter);
+          setJobs(visible.length > 0 ? visible : fetched);
+          if (visible[0]) handleSelectJob(visible[0]);
+          else if (fetched[0]) handleSelectJob(fetched[0]);
+        } else {
+          await fetchJobsList(jobFilter);
+        }
+        await fetchStats();
+        const matched = data.stats?.matchedAndScreened ?? data.stats?.savedToDb ?? fetched.length;
+        alert(`Successfully fetched jobs! ${matched} matched — showing ${fetched.length} in your Leads Hub.`);
+      } else {
+        alert('Fetch failed: ' + (data.error || 'Unknown error'));
       }
     } catch (err) {
       alert('Error fetching jobs: ' + err.message);
@@ -1111,10 +1126,13 @@ export default function App() {
     );
   }
 
+  const pendingJobCount =
+    jobFilter === 'pending' && jobs.length > 0 ? jobs.length : stats.jobsCount.pending;
+
   return (
-    <div className="min-h-screen flex flex-col">
+    <div className="min-h-screen flex flex-col bg-[#07080e]">
       {/* 1. Header Navigation Bar */}
-      <header className="glass-panel sticky top-0 z-50 rounded-none border-t-0 border-x-0 px-8 py-4 flex items-center justify-between backdrop-blur-md">
+      <header className="sticky top-0 z-50 border-b border-indigo-500/20 bg-[#07080e]/95 backdrop-blur-xl px-8 py-4 flex items-center justify-between shadow-lg shadow-black/40">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-violet-600 to-cyan-400 flex items-center justify-center shadow-lg shadow-violet-900/30">
             <Mail className="w-5 h-5 text-white" />
@@ -1150,7 +1168,7 @@ export default function App() {
       </header>
 
       {/* Main Core View Area */}
-      <div className="flex-1 max-w-7xl w-full mx-auto p-8 flex gap-8">
+      <div className="flex-1 max-w-7xl w-full mx-auto p-8 flex gap-8 bg-[#07080e]">
         
         {/* Sidebar Nav Panels */}
         <aside className="w-64 flex flex-col gap-2 shrink-0">
@@ -1481,7 +1499,7 @@ export default function App() {
                           onClick={() => setJobFilter('pending')} 
                           className={`px-3 py-1.5 rounded-md font-semibold ${jobFilter === 'pending' ? 'bg-violet-950/70 text-violet-300 font-bold' : 'text-slate-400'}`}
                         >
-                          New ({stats.jobsCount.pending})
+                          New ({pendingJobCount})
                         </button>
                         <button 
                           onClick={() => setJobFilter('applied')} 
@@ -1499,7 +1517,12 @@ export default function App() {
                     </div>
 
                     {/* Jobs card listings */}
-                    <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-3">
+                    <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-3 min-h-0">
+                      {jobs.length > 0 && (
+                        <p className="text-[10px] text-slate-500 font-semibold text-center shrink-0">
+                          Showing {jobs.length} job{jobs.length !== 1 ? 's' : ''} — scroll for more
+                        </p>
+                      )}
                       {loading ? (
                         <div className="flex flex-col items-center justify-center py-20 text-slate-500 gap-3">
                           <RefreshCw className="w-8 h-8 animate-spin text-cyan-400" />

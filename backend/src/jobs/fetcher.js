@@ -320,8 +320,13 @@ export async function fetchJobs(user) {
     savedToDb: savedCount
   });
 
+  const pendingJobs = await Job.find({ userId: user._id, status: 'pending' })
+    .sort({ posted_at: -1 })
+    .lean();
+
   return {
     success: true,
+    jobs: pendingJobs,
     stats: {
       totalFetched: stats.totalFetched,
       duplicatesSkipped: stats.duplicatesSkipped,

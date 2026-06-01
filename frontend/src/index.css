@@ -38,6 +38,11 @@
   scrollbar-color: rgba(255, 255, 255, 0.08) transparent;
 }
 
+#root {
+  min-height: 100vh;
+  background-color: var(--bg-base);
+}
+
 body {
   background-color: var(--bg-base);
   background-image: 
@@ -252,7 +257,7 @@ h1, h2, h3, h4, h5, h6 {
 @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
 
 .glass-panel {
-  background: var(--bg-surface);
+  background: rgba(13, 14, 25, 0.85);
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
   border: 1px solid var(--border-color);
