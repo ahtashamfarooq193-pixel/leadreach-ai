@@ -325,19 +325,32 @@ export default function App() {
     setAuthMode('login');
   };
 
-  // Fetch Dashboard Stats & Health Check
+  // Health check — uses public endpoint (no auth required)
+  const checkServerHealth = async () => {
+    try {
+      const res = await fetch(`${API_BASE}/health`);
+      const contentType = res.headers.get('content-type') || '';
+      if (res.ok && contentType.includes('application/json')) {
+        setServerOnline(true);
+        return true;
+      }
+      setServerOnline(false);
+      return false;
+    } catch {
+      setServerOnline(false);
+      return false;
+    }
+  };
+
   const fetchStats = async () => {
     try {
       const res = await fetch(`${API_BASE}/stats`);
       if (res.ok) {
         const data = await res.json();
         setStats(data);
-        setServerOnline(true);
-      } else {
-        setServerOnline(false);
       }
     } catch (err) {
-      setServerOnline(false);
+      console.error('Stats fetch failed:', err.message);
     }
   };
 
@@ -607,6 +620,7 @@ export default function App() {
   // Init Data on Mount (demo mode - no token check needed)
   useEffect(() => {
     if (authMode === 'dashboard') {
+      checkServerHealth();
       fetchStats();
       fetchSettings();
       fetchLogs();
@@ -1267,7 +1281,7 @@ export default function App() {
                 <h3 className="text-2xl font-bold mb-2">Backend Connection Lost</h3>
                 <p className="text-slate-400 max-w-md">The job fetching outreach backend service is currently offline. Please run the backend server first to start searching, drafting, and sending out automated pitches!</p>
               </div>
-              <button onClick={fetchStats} className="btn btn-primary px-6">
+              <button onClick={checkServerHealth} className="btn btn-primary px-6">
                 <RefreshCw className="w-4 h-4 mr-2" />
                 Retry Connection
               </button>

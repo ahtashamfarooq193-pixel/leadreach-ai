@@ -12,19 +12,21 @@ export async function requireAuth(req, res, next) {
   const token = authHeader.split(' ')[1];
 
   if (token === 'demo-bypass-token') {
+    const demoUser = {
+      _id: '507f1f77bcf86cd799439011',
+      name: 'Ahtasham Farooq',
+      email: 'ahtashamfarooq@gmail.com',
+      isOnboarded: true,
+      niche: 'React Developer',
+      portfolioUrl: 'https://ahtashamfarooq.netlify.app/',
+      githubUrl: 'https://github.com/ahtashamfarooq193-pixel',
+      resumeUrl: 'https://ahtashamfarooq.framer.website/',
+      targetKeywords: 'WordPress, React, HTML, CSS, JavaScript, Node.js, Flutter',
+    };
+
     // If MongoDB is not connected, bypass DB queries entirely
     if (mongoose.connection.readyState !== 1) {
-      req.user = {
-        _id: '507f1f77bcf86cd799439011',
-        name: 'Ahtasham Farooq',
-        email: 'ahtashamfarooq@gmail.com',
-        isOnboarded: true,
-        niche: 'React Developer',
-        portfolioUrl: 'https://ahtashamfarooq.netlify.app/',
-        githubUrl: 'https://github.com/ahtashamfarooq193-pixel',
-        resumeUrl: 'https://ahtashamfarooq.framer.website/',
-        targetKeywords: 'WordPress, React, HTML, CSS, JavaScript, Node.js, Flutter'
-      };
+      req.user = demoUser;
       return next();
     }
 
@@ -106,7 +108,8 @@ Best regards,
       return next();
     } catch (err) {
       console.error('Error finding/creating demo user in requireAuth:', err.message);
-      return res.status(500).json({ error: 'Database error in auth bypass' });
+      req.user = demoUser;
+      return next();
     }
   }
 
