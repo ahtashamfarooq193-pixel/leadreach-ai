@@ -23,11 +23,13 @@ import {
 
 // Determine API base URL
 const getApiBase = () => {
-  // Check for environment variable first (set by Vercel/build)
   if (import.meta.env.VITE_API_URL) {
-    return import.meta.env.VITE_API_URL;
+    return import.meta.env.VITE_API_URL.replace(/\/$/, '');
   }
-  // Fallback to localhost for development
+  // Production: same Vercel domain (frontend + backend together)
+  if (import.meta.env.PROD && typeof window !== 'undefined') {
+    return `${window.location.origin}/api`;
+  }
   return 'http://localhost:5000/api';
 };
 
