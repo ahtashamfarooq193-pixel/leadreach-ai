@@ -439,6 +439,15 @@ export default function App() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ niche: b2bNiche, location: b2bLocation, source: b2bSource })
       });
+      const contentType = res.headers.get('content-type') || '';
+      if (!contentType.includes('application/json')) {
+        const text = await res.text();
+        throw new Error(
+          res.status === 404
+            ? 'API route not found. Redeploy Vercel (latest code) and wait 2 minutes.'
+            : `Server returned HTML instead of JSON (${res.status}). ${text.slice(0, 80)}`
+        );
+      }
       const data = await res.json();
       if (res.ok && data.success) {
         setB2bLeads(data.leads);

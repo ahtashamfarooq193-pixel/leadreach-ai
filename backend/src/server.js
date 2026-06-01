@@ -455,90 +455,27 @@ ${mockSettingsObj.sender_name}`;
 
     if (req.path === '/api/local-leads/search') {
       try {
-        const { niche, location } = req.body;
-        
-        // Import the mock leads function (redefine it inline for offline mode)
-        const mockBusinessDatabase = {
-          'dentist': {
-            'Los Angeles County, CA': [
-              { name: 'Downtown Dental Care', phone: '(213) 555-0101', website: 'https://downtowndental.com', rating: 4.8, reviews: 245 },
-              { name: 'Beverly Hills Smile Studio', phone: '(310) 555-0202', website: 'https://bhsmilestudio.com', rating: 4.7, reviews: 189 },
-              { name: 'Santa Monica Family Dentistry', phone: '(424) 555-0303', website: 'https://smfamilydental.com', rating: 4.9, reviews: 312 },
-              { name: 'Long Beach Dental Wellness', phone: '(562) 555-0404', website: 'https://lbdentalwellness.com', rating: 4.6, reviews: 167 },
-              { name: 'Pasadena Cosmetic Dentists', phone: '(626) 555-0505', website: 'https://pasadenacosmetic.com', rating: 4.8, reviews: 278 },
-              { name: 'West LA Dental Excellence', phone: '(310) 555-0606', website: 'https://westladental.com', rating: 4.7, reviews: 201 },
-              { name: 'Torrance Advanced Dental', phone: '(310) 555-0707', website: 'https://torrancedental.com', rating: 4.5, reviews: 134 },
-              { name: 'Glendale Modern Dentistry', phone: '(818) 555-0808', website: 'https://glendaledentalcare.com', rating: 4.9, reviews: 298 },
-              { name: 'Inglewood Smile Center', phone: '(424) 555-0909', website: 'https://inglewoodsmile.com', rating: 4.6, reviews: 156 },
-              { name: 'Culver City Dental Group', phone: '(310) 555-1010', website: 'https://culvercitydental.com', rating: 4.8, reviews: 223 },
-              { name: 'Manhattan Beach Family Dental', phone: '(310) 555-1111', website: 'https://mbfamilydental.com', rating: 4.7, reviews: 187 },
-              { name: 'Redondo Beach Dental Practice', phone: '(310) 555-1212', website: 'https://redondobeachdental.com', rating: 4.8, reviews: 267 },
-            ],
-            'Chicago, IL': [
-              { name: 'Chicago Downtown Dental', phone: '(312) 555-2001', website: 'https://chicagodowntowndental.com', rating: 4.7, reviews: 234 },
-              { name: 'North Shore Smile Specialists', phone: '(847) 555-2002', website: 'https://northshoresmile.com', rating: 4.8, reviews: 289 },
-              { name: 'Loop Dental Excellence', phone: '(312) 555-2003', website: 'https://loopdentalexcellence.com', rating: 4.6, reviews: 178 },
-              { name: 'Naperville Advanced Dentistry', phone: '(630) 555-2004', website: 'https://napervilledental.com', rating: 4.9, reviews: 312 },
-              { name: 'Evanston Family Dentists', phone: '(847) 555-2005', website: 'https://evanstondentalcare.com', rating: 4.7, reviews: 201 },
-            ]
-          },
-          'plumber': {
-            'Los Angeles County, CA': [
-              { name: 'LA Pro Plumbing Services', phone: '(213) 555-3001', website: 'https://laproplumbing.com', rating: 4.8, reviews: 267 },
-              { name: 'Emergency 24/7 Plumbing LA', phone: '(323) 555-3002', website: 'https://emergency247plumbing.com', rating: 4.6, reviews: 145 },
-              { name: 'Santa Monica Plumbing Experts', phone: '(424) 555-3003', website: 'https://smplumbingexperts.com', rating: 4.9, reviews: 298 },
-              { name: 'Long Beach Master Plumbers', phone: '(562) 555-3004', website: 'https://lbmasterplumbers.com', rating: 4.7, reviews: 212 },
-              { name: 'Pasadena Rooter & Plumbing', phone: '(626) 555-3005', website: 'https://pasadenarooter.com', rating: 4.8, reviews: 256 },
-              { name: 'West LA Pipe Specialists', phone: '(310) 555-3006', website: 'https://westlapipe.com', rating: 4.6, reviews: 189 },
-            ]
-          },
-          'electrician': {
-            'Los Angeles County, CA': [
-              { name: 'LA Licensed Electric Co', phone: '(213) 555-4001', website: 'https://lalicensedelectric.com', rating: 4.8, reviews: 289 },
-              { name: 'South Bay Electrical Services', phone: '(310) 555-4002', website: 'https://southbayelectric.com', rating: 4.7, reviews: 234 },
-              { name: 'Santa Monica Power Solutions', phone: '(424) 555-4003', website: 'https://smpowersolutions.com', rating: 4.9, reviews: 267 },
-              { name: 'Long Beach Electrical Experts', phone: '(562) 555-4004', website: 'https://lbelectricalexperts.com', rating: 4.6, reviews: 156 },
-              { name: 'Pasadena Master Electricians', phone: '(626) 555-4005', website: 'https://pasadenamasterelectric.com', rating: 4.8, reviews: 278 },
-            ]
-          }
-        };
-        
-        const nicheKey = (niche || '').toLowerCase().trim();
-        const locationKey = location ? location.trim() : '';
-        
-        let results = [];
-        
-        // Try exact match first
-        if (mockBusinessDatabase[nicheKey] && mockBusinessDatabase[nicheKey][locationKey]) {
-          const businesses = mockBusinessDatabase[nicheKey][locationKey];
-          results = businesses.map(biz => ({
-            id: crypto.createHash('md5').update(biz.name + biz.website).digest('hex').substring(0, 12),
-            name: biz.name,
-            niche: niche || 'Business',
-            location: location || 'USA',
-            website: biz.website,
-            phone: biz.phone,
-            whatsapp: '',
-            email: '',
-            rating: biz.rating,
-            reviews_count: biz.reviews,
-            status: 'active',
-            outreach_status: 'pending',
-            customized_pitch: ''
-          }));
-        }
-        
-        // Add to mock leads list
-        mockLeadsList = [...results, ...mockLeadsList.filter(l => l.niche !== niche || l.location !== location)];
-        
-        const filteredLeads = mockLeadsList.filter(l => l.niche === niche && l.location === location);
-        
-        console.log(`✅ B2B Search returned ${filteredLeads.length} leads for "${niche}" in "${location}" (Offline Mode)`);
-        return res.json({ 
-          success: true, 
-          savedCount: filteredLeads.length, 
-          leads: filteredLeads 
-        });
+        const { niche, location, source } = req.body;
+        const apiKey = process.env.GOOGLE_PLACES_API_KEY || process.env.GOOGLE_API_KEY || null;
+        let leads = await searchLocalLeads(niche, location, apiKey, source || 'google');
+
+        const toScrape = leads.filter((l) => l.website && !l.email).slice(0, 8);
+        await Promise.all(
+          toScrape.map(async (lead) => {
+            try {
+              const contacts = await scrapeBusinessContacts(lead.website);
+              if (contacts.email) lead.email = contacts.email;
+              if (contacts.phone && !lead.phone) lead.phone = contacts.phone;
+              if (contacts.whatsapp) lead.whatsapp = contacts.whatsapp;
+            } catch (e) {
+              console.log(`Offline scrape skip:`, e.message);
+            }
+          })
+        );
+
+        mockLeadsList = [...leads, ...mockLeadsList.filter((l) => l.niche !== niche || l.location !== location)];
+        console.log(`✅ B2B Search (offline DB): ${leads.length} leads for "${niche}" in "${location}"`);
+        return res.json({ success: true, savedCount: leads.length, leads });
       } catch (err) {
         console.error('Local leads search error:', err.message);
         return res.json({ success: false, error: err.message, leads: [] });
@@ -1204,27 +1141,57 @@ app.get('/api/local-leads', requireAuth, async (req, res) => {
 app.post('/api/local-leads/search', requireAuth, async (req, res) => {
   try {
     const { niche, location, source } = req.body;
-    const settings = await Settings.findOne({ userId: req.user._id });
-    const apiKey = settings ? settings.google_places_api_key : null;
-    
-    console.log(`B2B Lead Search: Niche="${niche}", Location="${location}" (User: ${req.user.email})`);
-    const leads = await searchLocalLeads(niche, location, apiKey, source || 'google');
-    
-    let savedCount = 0;
-    for (const lead of leads) {
-      const existing = await LocalLead.findOne({ id: lead.id, userId: req.user._id });
-      if (!existing) {
-        await LocalLead.create({
-          ...lead,
-          userId: req.user._id,
-          outreach_status: 'pending'
-        });
-        savedCount++;
+    let apiKey = process.env.GOOGLE_PLACES_API_KEY || process.env.GOOGLE_API_KEY || null;
+
+    if (mongoose.connection.readyState === 1) {
+      const settings = await Settings.findOne({ userId: req.user._id });
+      if (settings?.google_places_api_key && settings.google_places_api_key !== '••••••••') {
+        apiKey = settings.google_places_api_key;
       }
     }
-    
-    const updatedLeads = await LocalLead.find({ userId: req.user._id, niche, location }).sort({ created_at: -1 });
-    res.json({ success: true, savedCount, leads: updatedLeads });
+
+    console.log(`B2B Lead Search: Niche="${niche}", Location="${location}" (User: ${req.user.email})`);
+    let leads = await searchLocalLeads(niche, location, apiKey, source || 'google');
+
+    // Auto-scrape real emails from business websites (top 8 with sites)
+    const toScrape = leads.filter((l) => l.website && !l.email).slice(0, 8);
+    await Promise.all(
+      toScrape.map(async (lead) => {
+        try {
+          const contacts = await scrapeBusinessContacts(lead.website);
+          if (contacts.email) lead.email = contacts.email;
+          if (contacts.phone && !lead.phone) lead.phone = contacts.phone;
+          if (contacts.whatsapp) lead.whatsapp = contacts.whatsapp;
+          if (contacts.instagram) lead.instagram_url = contacts.instagram;
+          if (contacts.facebook) lead.facebook_url = contacts.facebook;
+        } catch (e) {
+          console.log(`Scrape skip ${lead.website}:`, e.message);
+        }
+      })
+    );
+
+    let savedCount = 0;
+    const dbOnline = mongoose.connection.readyState === 1;
+
+    if (dbOnline) {
+      for (const lead of leads) {
+        const existing = await LocalLead.findOne({ id: lead.id, userId: req.user._id });
+        if (!existing) {
+          await LocalLead.create({
+            ...lead,
+            userId: req.user._id,
+            outreach_status: 'pending',
+          });
+          savedCount++;
+        }
+      }
+      leads = await LocalLead.find({ userId: req.user._id, niche, location }).sort({ created_at: -1 });
+    } else {
+      mockLeadsList = [...leads, ...mockLeadsList.filter((l) => l.niche !== niche || l.location !== location)];
+      savedCount = leads.length;
+    }
+
+    res.json({ success: true, savedCount, leads });
   } catch (err) {
     console.error('Error during B2B search:', err.message);
     res.status(500).json({ error: err.message });

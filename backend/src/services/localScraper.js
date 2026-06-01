@@ -1524,18 +1524,47 @@ export async function searchLocalLeads(niche, location, apiKey = null, source = 
 
   console.log(`\n🔥 B2B LEAD SEARCH STARTED: Niche="${cleanNiche}", Location="${cleanLocation}", Source="${cleanSource}"\n`);
 
-  // Try real scraping first from multiple sources
+  const envGoogleKey = process.env.GOOGLE_PLACES_API_KEY || process.env.GOOGLE_API_KEY || null;
+  const effectiveApiKey =
+    apiKey && apiKey.trim() && apiKey !== '••••••••' ? apiKey.trim() : envGoogleKey;
+
+  // 1) Google Places API — real businesses with websites (best quality)
+  if (effectiveApiKey && (cleanSource === 'google' || cleanSource === 'multi')) {
+    try {
+      const googleLeads = await searchGooglePlaces(cleanNiche, cleanLocation, effectiveApiKey);
+      if (googleLeads?.length > 0) {
+        console.log(`✅ Google Places: ${googleLeads.length} real businesses`);
+        return googleLeads;
+      }
+    } catch (err) {
+      console.log(`⚠️ Google Places failed:`, err.message);
+    }
+  }
+
+  // 2) Free web scraper (DuckDuckGo / HTML) — no API key needed
   if (cleanSource === 'google' || cleanSource === 'multi') {
-    console.log(`📡 Attempting to scrape from multiple sources...`);
+    try {
+      const freeLeads = await searchFreeScraper(cleanNiche, cleanLocation);
+      if (freeLeads?.length > 0) {
+        console.log(`✅ Free scraper: ${freeLeads.length} businesses`);
+        return freeLeads;
+      }
+    } catch (err) {
+      console.log(`⚠️ Free scraper failed:`, err.message);
+    }
+  }
+
+  // 3) Yellow Pages, Trustpilot, Clutch, etc.
+  if (cleanSource === 'google' || cleanSource === 'multi') {
+    console.log(`📡 Trying multi-source scrapers...`);
     try {
       const realLeads = await searchAllSources(cleanNiche, cleanLocation);
-      if (realLeads && realLeads.length > 0) {
-        console.log(`✅ SUCCESS! Found ${realLeads.length} real leads from multiple sources`);
+      if (realLeads?.length > 0) {
+        console.log(`✅ Multi-source: ${realLeads.length} leads`);
         return realLeads;
       }
     } catch (err) {
-      console.log(`⚠️  Multi-source scraping failed:`, err.message);
-      console.log(`📌 Falling back to mock data...`);
+      console.log(`⚠️ Multi-source failed:`, err.message);
     }
   }
 
