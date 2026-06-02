@@ -1250,8 +1250,8 @@ export async function searchLocalLeads(niche, location, apiKey = null, source = 
     throw new Error('Niche and Location are required to find B2B local leads.');
   }
 
-  const cleanNiche = niche.trim();
-  const cleanLocation = location.trim();
+  const cleanNiche = niche.replace(/[\u2700-\u27BF]|[\uE000-\uF8FF]|\uD83C[\uDC00-\uDFFF]|\uD83D[\uDC00-\uDFFF]|[\u2011-\u26FF]|\uD83E[\uDD00-\uDFFF]/g, '').trim();
+  const cleanLocation = location.split('(')[0].replace(/\b(?:us|usa|united states)\b/gi, '').replace(/\s+/g, ' ').trim();
   const cleanSource = (source || 'google').toLowerCase();
 
   console.log(`\n🔥 B2B LEAD SEARCH STARTED: Niche="${cleanNiche}", Location="${cleanLocation}", Source="${cleanSource}"\n`);
