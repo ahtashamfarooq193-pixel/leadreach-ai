@@ -114,52 +114,8 @@ Best regards,
   auto_apply: 0
 };
 
-let mockJobsList = [
-  {
-    id: 'job-mock-1',
-    title: 'React Developer',
-    company: 'Tech Solutions Inc.',
-    url: 'https://example.com/job1',
-    company_url: 'https://example.com',
-    email: 'hr@techsolutions.com',
-    description: 'We are looking for a React Developer with experience in HTML, CSS, JS, React, Node.js. Position is fully remote with competitive compensation.',
-    platform: 'WeWorkRemotely',
-    posted_at: new Date(),
-    status: 'pending',
-    customized_pitch: ''
-  },
-  {
-    id: 'job-mock-2',
-    title: 'Full Stack Engineer',
-    company: 'Creative Web Studio',
-    url: 'https://example.com/job2',
-    company_url: 'https://example.com',
-    email: '',
-    description: 'Looking for a developer to help us build a WordPress website and React app. Must be skilled in PHP, React, and general web design.',
-    platform: 'RemoteOK',
-    posted_at: new Date(Date.now() - 86400000),
-    status: 'pending',
-    customized_pitch: ''
-  }
-];
-
-let mockLeadsList = [
-  {
-    id: 'lead-mock-1',
-    name: 'Downtown Dental Care',
-    niche: 'Dentist',
-    location: 'Cook County, IL',
-    website: 'https://downtowndental.com',
-    phone: '312-555-0199',
-    whatsapp: '312-555-0199',
-    email: 'info@downtowndental.com',
-    rating: 4.5,
-    reviews_count: 128,
-    status: 'active',
-    outreach_status: 'pending',
-    customized_pitch: ''
-  }
-];
+let mockJobsList = [];
+let mockLeadsList = [];
 
 let mockLogsList = [];
 

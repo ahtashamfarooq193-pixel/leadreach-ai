@@ -341,176 +341,8 @@ export function analyzeWebsiteDesign(html, url) {
   };
 }
 
-// Comprehensive Mock Database for B2B Leads Testing - EXPANDED
-const mockBusinessDatabase = {
-  'dentist': {
-    'cook county, il': [
-      { name: 'Chicago Downtown Dental', phone: '(312) 555-2001', website: 'https://chicagodowntowndental.com', rating: 4.7, reviews: 234 },
-      { name: 'North Shore Smile Specialists', phone: '(847) 555-2002', website: 'https://northshoresmile.com', rating: 4.8, reviews: 289 },
-      { name: 'Loop Dental Excellence', phone: '(312) 555-2003', website: 'https://loopdentalexcellence.com', rating: 4.6, reviews: 178 },
-      { name: 'Naperville Advanced Dentistry', phone: '(630) 555-2004', website: 'https://napervilledental.com', rating: 4.9, reviews: 312 },
-      { name: 'Evanston Family Dentists', phone: '(847) 555-2005', website: 'https://evanstondentalcare.com', rating: 4.7, reviews: 201 },
-      { name: 'Lincoln Park Dental Care', phone: '(773) 555-2006', website: 'https://lincolnparkdental.com', rating: 4.8, reviews: 267 },
-      { name: 'Oak Park Smile Center', phone: '(708) 555-2007', website: 'https://oakparksmile.com', rating: 4.6, reviews: 145 },
-      { name: 'Skokie Modern Dentistry', phone: '(847) 555-2008', website: 'https://skokiedental.com', rating: 4.9, reviews: 298 },
-    ],
-    'los angeles county, ca': [
-      { name: 'Downtown Dental Care', phone: '(213) 555-0101', website: 'https://downtowndental.com', rating: 4.8, reviews: 245 },
-      { name: 'Beverly Hills Smile Studio', phone: '(310) 555-0202', website: 'https://bhsmilestudio.com', rating: 4.7, reviews: 189 },
-      { name: 'Santa Monica Family Dentistry', phone: '(424) 555-0303', website: 'https://smfamilydental.com', rating: 4.9, reviews: 312 },
-      { name: 'Long Beach Dental Wellness', phone: '(562) 555-0404', website: 'https://lbdentalwellness.com', rating: 4.6, reviews: 167 },
-      { name: 'Pasadena Cosmetic Dentists', phone: '(626) 555-0505', website: 'https://pasadenacosmetic.com', rating: 4.8, reviews: 278 },
-    ]
-  },
-  'roofer': {
-    'cook county, il': [
-      { name: 'Chicago Roofing Experts', phone: '(312) 555-3001', website: 'https://chicagoroofing.com', rating: 4.8, reviews: 267 },
-      { name: 'North Shore Roof Solutions', phone: '(847) 555-3002', website: 'https://northshoreroof.com', rating: 4.7, reviews: 234 },
-      { name: 'Emergency Roof Repair Chicago', phone: '(773) 555-3003', website: 'https://emergencyroofchicago.com', rating: 4.9, reviews: 298 },
-      { name: 'Residential Roofing Specialists', phone: '(630) 555-3004', website: 'https://residentialroofing.com', rating: 4.6, reviews: 156 },
-      { name: 'Evanston Roof Masters', phone: '(847) 555-3005', website: 'https://evanstonroofmasters.com', rating: 4.8, reviews: 278 },
-    ]
-  },
-  'plumber': {
-    'cook county, il': [
-      { name: 'Chicago Pro Plumbing', phone: '(312) 555-4001', website: 'https://chicagoproplumbing.com', rating: 4.8, reviews: 289 },
-      { name: 'Emergency 24/7 Plumbing Chicago', phone: '(773) 555-4002', website: 'https://emergency247plumbingchi.com', rating: 4.7, reviews: 234 },
-      { name: 'North Shore Plumbing Experts', phone: '(847) 555-4003', website: 'https://northshoreplumbingexperts.com', rating: 4.9, reviews: 267 },
-      { name: 'Master Plumbers Evanston', phone: '(847) 555-4004', website: 'https://masterplumbersevanston.com', rating: 4.6, reviews: 156 },
-      { name: 'Rooter & Plumbing Solutions', phone: '(630) 555-4005', website: 'https://rooterplumbingsolutions.com', rating: 4.8, reviews: 278 },
-      { name: 'Oak Park Emergency Plumbing', phone: '(708) 555-4006', website: 'https://oakparkplumbing.com', rating: 4.7, reviews: 201 },
-    ],
-    'los angeles county, ca': [
-      { name: 'LA Pro Plumbing Services', phone: '(213) 555-3001', website: 'https://laproplumbing.com', rating: 4.8, reviews: 267 },
-      { name: 'Emergency 24/7 Plumbing LA', phone: '(323) 555-3002', website: 'https://emergency247plumbing.com', rating: 4.6, reviews: 145 },
-    ]
-  },
-  'electrician': {
-    'cook county, il': [
-      { name: 'Chicago Licensed Electric Co', phone: '(312) 555-5001', website: 'https://chicagoelectric.com', rating: 4.8, reviews: 289 },
-      { name: 'North Shore Electrical Services', phone: '(847) 555-5002', website: 'https://northshoreelectric.com', rating: 4.7, reviews: 234 },
-      { name: 'Emergency Electrician Chicago', phone: '(773) 555-5003', website: 'https://emergencyelectrichicago.com', rating: 4.9, reviews: 267 },
-      { name: 'Power Solutions Chicago', phone: '(312) 555-5004', website: 'https://powersolutionschicago.com', rating: 4.6, reviews: 156 },
-      { name: 'Master Electricians Evanston', phone: '(847) 555-5005', website: 'https://masterelectriciansevanston.com', rating: 4.8, reviews: 278 },
-    ]
-  },
-  'hvac contractor': {
-    'cook county, il': [
-      { name: 'Chicago HVAC Solutions', phone: '(312) 555-6001', website: 'https://chicagohvac.com', rating: 4.8, reviews: 289 },
-      { name: 'Professional HVAC Services', phone: '(847) 555-6002', website: 'https://professionalhvac.com', rating: 4.7, reviews: 234 },
-      { name: 'Emergency HVAC Repair Chicago', phone: '(773) 555-6003', website: 'https://emergencyhvacchicago.com', rating: 4.9, reviews: 267 },
-      { name: 'Heating & Cooling Experts', phone: '(630) 555-6004', website: 'https://heatingcoolingexperts.com', rating: 4.6, reviews: 156 },
-    ]
-  },
-  'chiropractor': {
-    'cook county, il': [
-      { name: 'Chicago Chiropractic Center', phone: '(312) 555-7001', website: 'https://chicagochiro.com', rating: 4.8, reviews: 289 },
-      { name: 'North Shore Chiropractic Care', phone: '(847) 555-7002', website: 'https://northshorechiro.com', rating: 4.7, reviews: 234 },
-      { name: 'Spine Health Chicago', phone: '(773) 555-7003', website: 'https://spinehealthchicago.com', rating: 4.9, reviews: 267 },
-    ]
-  },
-  'gym & fitness': {
-    'cook county, il': [
-      { name: 'Chicago Fitness Club', phone: '(312) 555-8001', website: 'https://chicagofitness.com', rating: 4.8, reviews: 289 },
-      { name: 'North Shore Gym & Wellness', phone: '(847) 555-8002', website: 'https://northshoregym.com', rating: 4.7, reviews: 234 },
-      { name: 'Premium Fitness Chicago', phone: '(773) 555-8003', website: 'https://premiumfitnesschi.com', rating: 4.9, reviews: 267 },
-    ]
-  },
-  'restaurant': {
-    'cook county, il': [
-      { name: 'Downtown Chicago Italian', phone: '(312) 555-9001', website: 'https://downchicagoitalian.com', rating: 4.7, reviews: 456 },
-      { name: 'North Shore Seafood Grill', phone: '(847) 555-9002', website: 'https://northshoreseafood.com', rating: 4.8, reviews: 523 },
-      { name: 'Premium Steakhouse Chicago', phone: '(312) 555-9003', website: 'https://premiumsteakhouse.com', rating: 4.9, reviews: 612 },
-    ],
-    'los angeles county, ca': [
-      { name: 'Westwood Italian Kitchen', phone: '(310) 555-5001', website: 'https://westwooditalian.com', rating: 4.7, reviews: 456 },
-      { name: 'Santa Monica Seafood Grill', phone: '(424) 555-5002', website: 'https://smseafoodgrill.com', rating: 4.8, reviews: 523 },
-    ]
-  },
-  'real estate agent': {
-    'cook county, il': [
-      { name: 'Chicago Premium Realty', phone: '(312) 555-10001', website: 'https://chicagopremiumrealty.com', rating: 4.8, reviews: 267 },
-      { name: 'North Shore Real Estate Group', phone: '(847) 555-10002', website: 'https://northshorerealestate.com', rating: 4.7, reviews: 234 },
-      { name: 'Downtown Chicago Homes', phone: '(312) 555-10003', website: 'https://downtownchicagohomes.com', rating: 4.9, reviews: 298 },
-    ]
-  }
-};
-
-// Helper to get mock leads based on niche and location
+// Helper to get mock leads based on niche and location - STUBBED (MOCK DATA REMOVED)
 function getMockLeadsForNiches(niche, location) {
-  // Try exact match first, then case-insensitive
-  const nicheKey = niche.toLowerCase().trim();
-  const locationKey = location.toLowerCase().trim();
-  
-  // Check exact location first (case-insensitive)
-  if (mockBusinessDatabase[nicheKey] && mockBusinessDatabase[nicheKey][locationKey]) {
-    const businesses = mockBusinessDatabase[nicheKey][locationKey];
-    return businesses.map((biz, index) => ({
-      id: generateLeadId(biz.name, biz.website),
-      name: biz.name,
-      niche,
-      location,
-      website: biz.website,
-      phone: biz.phone,
-      email: null,
-      instagram_url: null,
-      facebook_url: null,
-      rating: biz.rating,
-      reviews_count: biz.reviews,
-      status: 'active',
-      needs_optimization: 0,
-      optimization_reasons: 'Real business data'
-    }));
-  }
-  
-  // If no exact match, try case-insensitive search for location key
-  if (mockBusinessDatabase[nicheKey]) {
-    const locationKeys = Object.keys(mockBusinessDatabase[nicheKey]);
-    const matchedLocationKey = locationKeys.find(k => k.toLowerCase() === locationKey);
-    
-    if (matchedLocationKey) {
-      const businesses = mockBusinessDatabase[nicheKey][matchedLocationKey];
-      return businesses.map((biz) => ({
-        id: generateLeadId(biz.name, biz.website),
-        name: biz.name,
-        niche,
-        location, // Use requested location, not mock data location
-        website: biz.website,
-        phone: biz.phone,
-        email: null,
-        instagram_url: null,
-        facebook_url: null,
-        rating: biz.rating,
-        reviews_count: biz.reviews,
-        status: 'active',
-        needs_optimization: 0,
-        optimization_reasons: 'Real business data'
-      }));
-    }
-    
-    // If still no match, use any available location for this niche
-    const firstLocation = locationKeys[0];
-    if (firstLocation) {
-      const businesses = mockBusinessDatabase[nicheKey][firstLocation];
-      return businesses.map((biz) => ({
-        id: generateLeadId(biz.name, biz.website),
-        name: biz.name,
-        niche,
-        location, // Use requested location
-        website: biz.website,
-        phone: biz.phone,
-        email: null,
-        instagram_url: null,
-        facebook_url: null,
-        rating: biz.rating,
-        reviews_count: biz.reviews,
-        status: 'active',
-        needs_optimization: 0,
-        optimization_reasons: 'Real business data'
-      }));
-    }
-  }
-  
   return [];
 }
 
@@ -590,19 +422,9 @@ export async function scrapeBusinessContacts(websiteUrl) {
 
   const audit = analyzeWebsiteDesign(homepageResults.html, targetUrl);
 
-  // If email not found from scraping, generate common business email patterns as fallback
   let finalEmail = email;
   if (!finalEmail) {
-    console.log(`❌ No real email found on ${targetUrl}. Generating fallback email patterns...`);
-    const fallbackEmails = generateCommonBusinessEmails(targetUrl);
-    // Try each fallback pattern in priority order
-    for (const fallbackEmail of fallbackEmails) {
-      if (isLikelyRealEmail(fallbackEmail)) {
-        finalEmail = fallbackEmail;
-        console.log(`✅ Using fallback email: ${finalEmail}`);
-        break;
-      }
-    }
+    console.log(`❌ No real email found on ${targetUrl}.`);
   } else {
     console.log(`✅ Found real email from website: ${finalEmail}`);
   }
@@ -664,9 +486,12 @@ async function searchGooglePlaces(niche, location, apiKey) {
             needs_optimization = 1;
             optimization_reasons = "No business website found on Google Maps (Needs a new website designed)";
           } else {
-            // Run quick design audit
             try {
               const crawlResult = await scrapeUrl(website, 3500); // Fast 3.5s timeout
+              if (!crawlResult.html || crawlResult.html.trim() === '') {
+                console.log(`Skipping unreachable/dead website: ${website} for business "${details.name}"`);
+                continue;
+              }
               const audit = analyzeWebsiteDesign(crawlResult.html, website);
               if (audit.needs_optimization === 0) {
                 // Perfect modern website -> SKIP as per user request!
@@ -676,8 +501,8 @@ async function searchGooglePlaces(niche, location, apiKey) {
               needs_optimization = 1;
               optimization_reasons = audit.reasons.join(' | ');
             } catch (err) {
-              needs_optimization = 1;
-              optimization_reasons = "Website is currently unreachable or extremely slow to load";
+              console.log(`Skipping unreachable/dead website due to error: ${website} for business "${details.name}"`);
+              continue;
             }
           }
 
@@ -745,14 +570,29 @@ async function searchFreeScraper(niche, location) {
     let match;
     while ((match = hrefRegex.exec(html)) !== null) {
       const href = match[1];
+      let resolvedUrl = '';
       if (href.startsWith('http')) {
-        extractedUrls.push(href);
+        resolvedUrl = href;
       } else if (href.includes('/url?q=')) {
         try {
           const urlObj = new URL(href.startsWith('http') ? href : 'https://google.com' + href);
           const q = urlObj.searchParams.get('q');
           if (q && q.startsWith('http')) {
-            extractedUrls.push(q);
+            resolvedUrl = q;
+          }
+        } catch (e) {}
+      }
+      
+      if (resolvedUrl) {
+        try {
+          const host = new URL(resolvedUrl).hostname.toLowerCase();
+          if (
+            !host.includes('google.com') && 
+            !host.includes('google.co') && 
+            !host.includes('gstatic.com') &&
+            !host.includes('googleadservices.com')
+          ) {
+            extractedUrls.push(resolvedUrl);
           }
         } catch (e) {}
       }
@@ -911,11 +751,16 @@ async function searchFreeScraper(niche, location) {
         let name = urlObj.hostname.replace('www.', '').split('.')[0];
         name = name.charAt(0).toUpperCase() + name.slice(1);
 
-        // Run quick design audit
+        // Run quick design audit & validate website is active
         let needs_optimization = 0;
         let optimization_reasons = "";
         try {
           const crawlResult = await scrapeUrl(domain, 3500); // 3.5s timeout during search
+          if (!crawlResult.html || crawlResult.html.trim() === '') {
+            console.log(`Skipping unreachable/dead website: ${domain}`);
+            continue; // Skip lead if website is dead or unreachable
+          }
+          
           const audit = analyzeWebsiteDesign(crawlResult.html, domain);
           if (audit.needs_optimization === 0) {
             console.log(`Website is modern: ${domain} for business "${name}"`);
@@ -926,8 +771,8 @@ async function searchFreeScraper(niche, location) {
             optimization_reasons = audit.reasons.join(' | ');
           }
         } catch (err) {
-          needs_optimization = 1;
-          optimization_reasons = "Website is currently unreachable or extremely slow to load";
+          console.log(`Skipping unreachable/dead website due to error: ${domain}`);
+          continue; // Skip lead if website is dead or unreachable
         }
         
         leads.push({
@@ -940,8 +785,8 @@ async function searchFreeScraper(niche, location) {
           email: null,
           instagram_url: null,
           facebook_url: null,
-          rating: Math.round((4.0 + Math.random() * 1.0) * 10) / 10, // Randomized standard active ratings E.g. 4.5
-          reviews_count: Math.floor(Math.random() * 45) + 5, // Active reviews indicator
+          rating: null, // Real data only - no randomized fake numbers
+          reviews_count: null, // Real data only - no randomized fake numbers
           status: 'active',
           needs_optimization,
           optimization_reasons
@@ -1181,8 +1026,7 @@ async function searchMultiSourceScraper(niche, location, query, source) {
         } catch (e) {}
 
         if (!finalWebsite) {
-          const cleanSlug = slug.replace(/-\d+$/, '');
-          finalWebsite = `https://${cleanSlug.replace(/[^a-zA-Z0-9-]/g, '')}.com`;
+          continue; // Skip the Yelp lead if we cannot find a real website
         }
 
         leadPhone = phone;
@@ -1225,7 +1069,7 @@ async function searchMultiSourceScraper(niche, location, query, source) {
         } catch (e) {}
 
         if (!finalWebsite) {
-          finalWebsite = `https://${slug.replace(/[^a-zA-Z0-9-]/g, '')}.com`;
+          continue; // Skip the Clutch lead if we cannot find a real website
         }
 
         leadPhone = phone;
@@ -1242,13 +1086,19 @@ async function searchMultiSourceScraper(niche, location, query, source) {
           } else {
             businessName = 'Indeed Active Hirer';
           }
+          
+          let indeedWebsite = '';
+          const websiteMatch = indeedPage.html.match(/href=["'](https?:\/\/(?!indeed\.com)[^"']+)["']/i);
+          if (websiteMatch) {
+            indeedWebsite = websiteMatch[1];
+          }
+          if (!indeedWebsite) {
+            continue; // Skip the Indeed lead if no website is found on the hiring page
+          }
+          finalWebsite = indeedWebsite;
         } catch (e) {
-          businessName = 'Indeed Active Hirer';
+          continue; // Skip lead if error occurs
         }
-        
-        const cleanCompName = businessName.replace(/Jobs|Hiring|Careers/gi, '').trim();
-        const slugName = cleanCompName.toLowerCase().replace(/\s+/g, '-').replace(/[^\w\-]+/g, '').replace(/\-\-+/g, '-');
-        finalWebsite = `https://${slugName.replace(/[^a-zA-Z0-9-]/g, '')}.com`;
       }
       else {
         // Direct website
@@ -1274,11 +1124,15 @@ async function searchMultiSourceScraper(niche, location, query, source) {
       if (!domainList.has(domain) && domainList.size < 15) {
         domainList.add(domain);
 
-        // Run design audit
+        // Run design audit & validate website is active
         let needs_optimization = 0;
         let optimization_reasons = "";
         try {
           const crawlResult = await scrapeUrl(domain, 3500);
+          if (!crawlResult.html || crawlResult.html.trim() === '') {
+            console.log(`Skipping unreachable/dead website: ${domain}`);
+            continue; // Skip lead if website is dead/unreachable
+          }
           const audit = analyzeWebsiteDesign(crawlResult.html, domain);
           if (audit.needs_optimization === 0) {
             needs_optimization = 0;
@@ -1288,8 +1142,8 @@ async function searchMultiSourceScraper(niche, location, query, source) {
             optimization_reasons = audit.reasons.join(' | ');
           }
         } catch (err) {
-          needs_optimization = 1;
-          optimization_reasons = "Website is currently unreachable or extremely slow to load";
+          console.log(`Skipping unreachable/dead website due to error: ${domain}`);
+          continue; // Skip lead if website is dead/unreachable
         }
 
         leads.push({
@@ -1302,8 +1156,8 @@ async function searchMultiSourceScraper(niche, location, query, source) {
           email: null,
           instagram_url: null,
           facebook_url: null,
-          rating: Math.round((4.2 + Math.random() * 0.8) * 10) / 10,
-          reviews_count: Math.floor(Math.random() * 60) + 10,
+          rating: null, // Real data only - no randomized fake numbers
+          reviews_count: null, // Real data only - no randomized fake numbers
           status: 'active',
           needs_optimization,
           optimization_reasons
@@ -1316,22 +1170,6 @@ async function searchMultiSourceScraper(niche, location, query, source) {
 
   console.log(`MultiSource Scraper successfully loaded ${leads.length} validated leads from "${source}"!`);
   
-  // If we got too few results, supplement with mock data
-  if (leads.length < 8) {
-    console.log(`⚠️ Only found ${leads.length} leads. Supplementing with mock data for better results...`);
-    const mockLeads = getMockLeadsForNiches(niche, location);
-    
-    // Filter mock leads to avoid duplicates
-    const existingWebsites = new Set(leads.map(l => l.website));
-    const newMockLeads = mockLeads.filter(m => !existingWebsites.has(m.website));
-    
-    // Combine and limit to 15 total
-    leads.push(...newMockLeads);
-    leads.splice(15);
-    
-    console.log(`✅ Total leads after mock data: ${leads.length}`);
-  }
-  
   return leads;
 }
 
@@ -1339,134 +1177,28 @@ async function searchMultiSourceScraper(niche, location, query, source) {
 // MULTI-SOURCE SCRAPERS FOR REAL LEADS
 // ============================================
 
-// 1. YELLOW PAGES SCRAPER
+// 1. YELLOW PAGES SCRAPER - STUBBED (MOCK DATA REMOVED)
 async function scrapeYellowPages(niche, location) {
-  console.log(`🟡 Scraping Yellow Pages for: ${niche} in ${location}`);
-  
-  // Generate realistic mock data from Yellow Pages
-  const mockLeads = getMockLeadsForNiches(niche, location);
-  const leads = mockLeads.slice(0, 3).map(lead => ({
-    id: crypto.createHash('md5').update(lead.name + 'yellowpages').digest('hex').substring(0, 12),
-    name: lead.name + ' (YP)',
-    niche,
-    location,
-    website: lead.website,
-    phone: lead.phone,
-    email: null,
-    source: 'Yellow Pages',
-    rating: lead.rating,
-    reviews_count: lead.reviews,
-    status: 'active',
-    needs_optimization: 0
-  }));
-  
-  return leads;
+  return [];
 }
 
 async function scrapeTrustpilot(niche, location) {
-  console.log(`⭐ Scraping Trustpilot for: ${niche} in ${location}`);
-  
-  // Generate realistic mock data from Trustpilot
-  const mockLeads = getMockLeadsForNiches(niche, location);
-  const leads = mockLeads.slice(1, 4).map(lead => ({
-    id: crypto.createHash('md5').update(lead.name + 'trustpilot').digest('hex').substring(0, 12),
-    name: lead.name + ' (TP)',
-    niche,
-    location,
-    website: lead.website,
-    phone: lead.phone,
-    email: null,
-    source: 'Trustpilot',
-    rating: lead.rating,
-    reviews_count: lead.reviews,
-    status: 'active',
-    needs_optimization: 0
-  }));
-  
-  return leads;
+  return [];
 }
 
-// 3. CLUTCH SCRAPER - Verified Agencies (BEST)
+// 3. CLUTCH SCRAPER - Verified Agencies (BEST) - STUBBED (MOCK DATA REMOVED)
 async function scrapeClutch(niche, location) {
-  console.log(`🔧 Scraping Clutch for: ${niche} in ${location}`);
-  
-  // Generate realistic mock data from Clutch - These are verified agencies
-  const mockLeads = getMockLeadsForNiches(niche, location);
-  const leads = mockLeads.slice(0, 2).map(lead => ({
-    id: crypto.createHash('md5').update(lead.name + 'clutch').digest('hex').substring(0, 12),
-    name: lead.name + ' 🏆',  // Mark as verified
-    niche,
-    location,
-    website: lead.website,
-    phone: lead.phone,
-    email: null,
-    source: 'Clutch (🏆 Verified Agency)',
-    rating: Math.min(5, lead.rating + 0.2),  // Verified agencies rate higher
-    reviews_count: lead.reviews,
-    status: 'active',
-    needs_optimization: 0
-  }));
-  
-  return leads;
+  return [];
 }
 
-// 4. BARK SCRAPER
+// 4. BARK SCRAPER - STUBBED (MOCK DATA REMOVED)
 async function scrapeBark(niche, location) {
-  console.log(`🐕 Scraping Bark for: ${niche} in ${location}`);
-  
-  // Generate realistic mock data from Bark
-  const mockLeads = getMockLeadsForNiches(niche, location);
-  const leads = mockLeads.slice(2, 5).map(lead => ({
-    id: crypto.createHash('md5').update(lead.name + 'bark').digest('hex').substring(0, 12),
-    name: lead.name + ' (Bark)',
-    niche,
-    location,
-    website: lead.website,
-    phone: lead.phone,
-    email: null,
-    source: 'Bark',
-    rating: lead.rating,
-    reviews_count: lead.reviews,
-    status: 'active',
-    needs_optimization: 0
-  }));
-  
-  return leads;
+  return [];
 }
 
-// 5. TWITTER/X HASHTAG SCRAPER
+// 5. TWITTER/X HASHTAG SCRAPER - STUBBED (MOCK DATA REMOVED)
 async function scrapeTwitterHashtags(niche, location) {
-  console.log(`🐦 Searching Twitter/X hashtags for: ${niche} in ${location}`);
-  const leads = [];
-  try {
-    // Note: Direct Twitter scraping is limited due to authentication
-    // This creates a search query that users can use
-    const hashtags = [
-      `#${niche.replace(/\s+/g, '')}${location.replace(/\s+/g, '')}`,
-      `#${niche.split(' ')[0]}Services`,
-      `#${niche.split(' ')[0]}Agency`,
-      `#Hire${niche.replace(/\s+/g, '')}`
-    ];
-    
-    // Return search suggestions instead of actual tweets
-    leads.push({
-      id: crypto.createHash('md5').update('twitter-search-' + niche).digest('hex').substring(0, 12),
-      name: `Twitter/X Search: ${hashtags.join(' OR ')}`,
-      niche,
-      location,
-      website: `https://twitter.com/search?q=${encodeURIComponent(hashtags.join(' OR '))}`,
-      phone: null,
-      email: null,
-      source: 'Twitter/X (Hashtag Search)',
-      rating: 4.0,
-      reviews_count: 0,
-      status: 'active',
-      needs_optimization: 0
-    });
-  } catch (err) {
-    console.log(`⚠️  Twitter search error:`, err.message);
-  }
-  return leads;
+  return [];
 }
 
 // ============================================
@@ -1568,12 +1300,7 @@ export async function searchLocalLeads(niche, location, apiKey = null, source = 
     }
   }
 
-  // Fallback to mock data if available
-  const mockLeads = getMockLeadsForNiches(cleanNiche, cleanLocation);
-  if (mockLeads.length > 0) {
-    console.log(`✅ Using MOCK DATABASE: Found ${mockLeads.length} leads for "${cleanNiche}" in "${cleanLocation}"`);
-    return mockLeads;
-  }
+
 
   console.log(`❌ No leads found from any source`);
   return [];
