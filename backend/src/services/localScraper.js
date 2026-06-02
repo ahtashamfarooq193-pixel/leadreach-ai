@@ -540,7 +540,7 @@ async function searchGooglePlaces(niche, location, apiKey) {
 // ----------------------------------------------------
 async function searchFreeScraper(niche, location) {
   console.log(`Using Free Web Scraper to search for ${niche} in ${location}...`);
-  const query = `"${niche}" "${location}" website phone -site:google.com -site:youtube.com -site:pinterest.com`;
+  const query = `${niche} ${location} website -site:google.com -site:youtube.com -site:pinterest.com -site:facebook.com -site:linkedin.com -site:yelp.com -site:yellowpages.com`;
   
   let html = '';
   let source = 'Google';
