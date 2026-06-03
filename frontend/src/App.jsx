@@ -643,6 +643,39 @@ export default function App() {
     }
   }, [jobFilter, authMode]);
 
+  // Auto-fetch jobs on first load if jobs list is empty
+  useEffect(() => {
+    const autoFetchJobsIfEmpty = async () => {
+      if (authMode === 'dashboard' && jobs.length === 0 && !loading) {
+        console.log('📋 Jobs list is empty - auto-fetching from live APIs...');
+        try {
+          const res = await fetch(`${API_BASE}/jobs/fetch`, { method: 'POST' });
+          if (res.ok) {
+            const data = await res.json();
+            if (data.success && data.jobs?.length > 0) {
+              console.log(`✅ Auto-fetched ${data.jobs.length} jobs`);
+              const visible = data.jobs.filter((j) => j.status === jobFilter);
+              setJobs(visible.length > 0 ? visible : data.jobs);
+              if (visible[0]) handleSelectJob(visible[0]);
+              else if (data.jobs[0]) handleSelectJob(data.jobs[0]);
+            }
+          }
+        } catch (err) {
+          console.error('Auto-fetch failed, will display manual fetch option:', err.message);
+        }
+      }
+    };
+
+    // Only run once on mount
+    if (authMode === 'dashboard' && !autoFetchAttempted.current) {
+      autoFetchAttempted.current = true;
+      autoFetchJobsIfEmpty();
+    }
+  }, [authMode]);
+
+  // Create ref to track if auto-fetch was attempted
+  const autoFetchAttempted = React.useRef(false);
+
   // Handle manual job fetching (trigger fetch engine)
   const handleTriggerFetch = async () => {
     setLoading(true);
