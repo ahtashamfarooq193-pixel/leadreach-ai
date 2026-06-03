@@ -1530,123 +1530,18 @@ async function scrapeTwitterHashtags(niche, location) {
 // AGGREGATE ALL SOURCES - Simplified for Vercel
 // ============================================
 async function searchAllSources(niche, location) {
-  console.log(`\n🔍 Searching real-time for "${niche}" in "${location}"...\n`);
+  console.log(`\n🔍 Using Free Web Scraper (multi-source)...\n`);
   
-  const allLeads = [];
-  
-  // 1. Try Yelp Business Search (most reliable)
+  // Simply use the free scraper which already works
+  // This avoids timeout and fetch issues on Vercel
   try {
-    console.log('🟡 Searching Yelp...');
-    const city = location.split(',')[0]?.trim() || 'City';
-    const yelpUrl = `https://www.yelp.com/search?find_desc=${niche.replace(/\s+/g, '+')}&find_loc=${city.replace(/\s+/g, '+')}`;
-    
-    const response = await fetch(yelpUrl, {
-      headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36' },
-      timeout: 10000
-    });
-    
-    if (response.ok) {
-      const html = await response.text();
-      const businessRegex = /href="(\/biz\/[^"]+)"[^>]*class="[^"]*Link[^"]*"[^>]*>([^<]+)<\/a>/gi;
-      
-      let match;
-      while ((match = businessRegex.exec(html)) !== null && allLeads.length < 12) {
-        const bizUrl = match[1];
-        const bizName = match[2]?.trim();
-        
-        if (bizName && bizName.length > 2) {
-          // Extract rating from context
-          const contextEnd = Math.min(html.length, html.indexOf(match[0]) + 600);
-          const context = html.substring(Math.max(0, html.indexOf(match[0]) - 200), contextEnd);
-          let rating = 0;
-          const ratingMatch = context.match(/(\d\.?\d?)\s*out of 5|(\d+\.?\d?)\s*(?:star|⭐)/i);
-          if (ratingMatch) rating = parseFloat(ratingMatch[1] || ratingMatch[2]);
-          
-          allLeads.push({
-            id: crypto.randomBytes(8).toString('hex'),
-            name: bizName,
-            niche,
-            location,
-            website: `https://www.yelp.com${bizUrl}`,
-            phone: null,
-            email: null,
-            instagram_url: null,
-            facebook_url: null,
-            rating: rating > 0 ? rating : 3.8,
-            reviews_count: null,
-            status: 'active',
-            needs_optimization: 0,
-            optimization_reasons: 'Active business found on Yelp'
-          });
-        }
-      }
-      
-      if (allLeads.length > 0) {
-        console.log(`✅ Yelp: Found ${allLeads.length} real businesses with ratings`);
-        return allLeads;
-      }
-    }
+    const leads = await searchFreeScraper(niche, location);
+    console.log(`✅ Free Web Scraper: Found ${leads.length} real B2B leads with emails`);
+    return leads;
   } catch (err) {
-    console.log(`⚠️ Yelp search error:`, err.message);
+    console.log(`⚠️ Free scraper error:`, err.message);
+    return [];
   }
-  
-  // 2. Fallback: Google Local Search
-  try {
-    console.log('🔵 Searching Google Local...');
-    const googleQuery = `${niche} near ${location}`.replace(/\s+/g, '+');
-    const googleUrl = `https://www.google.com/search?q=${googleQuery}`;
-    
-    const response = await fetch(googleUrl, {
-      headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' },
-      timeout: 8000
-    });
-    
-    if (response.ok) {
-      const html = await response.text();
-      
-      // Try to extract business names and info
-      const titleRegex = /<title>([^<]+)<\/title>/;
-      const titleMatch = titleRegex.exec(html);
-      
-      if (titleMatch && !allLeads.length) {
-        // Extract business names from title and headings
-        const headingRegex = /<h\d[^>]*>([^<]{5,60})<\/h\d>/gi;
-        let headingMatch;
-        
-        while ((headingMatch = headingRegex.exec(html)) !== null && allLeads.length < 10) {
-          const heading = headingMatch[1]?.trim();
-          if (heading && !heading.includes('Google') && !heading.includes('Search') && heading.length > 3) {
-            allLeads.push({
-              id: crypto.randomBytes(8).toString('hex'),
-              name: heading,
-              niche,
-              location,
-              website: `https://www.google.com/search?q=${encodeURIComponent(heading)}`,
-              phone: null,
-              email: null,
-              instagram_url: null,
-              facebook_url: null,
-              rating: 4.0,
-              reviews_count: null,
-              status: 'active',
-              needs_optimization: 0,
-              optimization_reasons: 'Business found via local search'
-            });
-          }
-        }
-      }
-      
-      if (allLeads.length > 0) {
-        console.log(`✅ Google Local: Found ${allLeads.length} businesses`);
-        return allLeads;
-      }
-    }
-  } catch (err) {
-    console.log(`⚠️ Google search error:`, err.message);
-  }
-  
-  console.log(`⚠️ No real leads found from live sources`);
-  return [];
 }
 
 // ----------------------------------------------------
