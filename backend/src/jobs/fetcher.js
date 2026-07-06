@@ -4,11 +4,13 @@ import { Job, Settings } from '../models/index.js';
 
 const parser = new Parser({
   headers: {
-    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
-  }
+    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+  },
 });
 
-// Helper to generate unique ID from URL
+const DEFAULT_KEYWORDS =
+  'WordPress, React, HTML, CSS, JavaScript, Node.js, Flutter, TypeScript, Developer';
+
 function generateJobId(url) {
   return crypto.createHash('md5').update(url).digest('hex');
 }
@@ -18,25 +20,21 @@ function slugify(text) {
     .toString()
     .toLowerCase()
     .trim()
-    .replace(/\s+/g, '-')           // Replace spaces with -
-    .replace(/[^\w\-]+/g, '')       // Remove all non-word chars
-    .replace(/\-\-+/g, '-')         // Replace multiple - with single -
-    .replace(/^-+/, '')             // Trim - from start
-    .replace(/-+$/, '');            // Trim - from end
+    .replace(/\s+/g, '-')
+    .replace(/[^\w\-]+/g, '')
+    .replace(/\-\-+/g, '-')
+    .replace(/^-+/, '')
+    .replace(/-+$/, '');
 }
 
 function extractCompanyFromLink(title, link) {
   try {
     const urlObj = new URL(link);
-    const pathname = urlObj.pathname;
-    const match = pathname.match(/\/remote-jobs\/remote-(.+)-(\d+)/);
-    if (!match) return 'RemoteOK Web3 Partner';
+    const match = urlObj.pathname.match(/\/remote-jobs\/remote-(.+)-(\d+)/);
+    if (!match) return 'Remote Company';
 
     const slugCombined = match[1];
-    const id = match[2];
-
     const titleSlug = slugify(title);
-
     let companySlug = slugCombined;
     if (slugCombined.startsWith(titleSlug)) {
       companySlug = slugCombined.substring(titleSlug.length).replace(/^-+/, '');
@@ -44,267 +42,256 @@ function extractCompanyFromLink(title, link) {
 
     return companySlug
       .split('-')
-      .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+      .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
       .join(' ');
-  } catch (e) {
-    return 'RemoteOK Web3 Partner';
+  } catch {
+    return 'Remote Company';
   }
 }
 
-// Check if job matches user skills
+function normalizeKeywords(keywords) {
+  if (Array.isArray(keywords)) {
+    return keywords.map((k) => String(k).trim()).filter(Boolean).join(',');
+  }
+  if (typeof keywords === 'string' && keywords.trim()) {
+    return keywords.trim();
+  }
+  return DEFAULT_KEYWORDS;
+}
+
 function matchesKeywords(title, description, keywordsList) {
-  if (!keywordsList) return false;
-  const keywords = keywordsList.split(',').map(k => k.trim().toLowerCase()).filter(Boolean);
+  const normalized = normalizeKeywords(keywordsList);
+  if (!normalized) return true;
+  const keywords = normalized.split(',').map((k) => k.trim().toLowerCase()).filter(Boolean);
   const text = `${title} ${description}`.toLowerCase();
-  
-  return keywords.some(keyword => {
+
+  return keywords.some((keyword) => {
     if (keyword.length <= 3) {
-      const regex = new RegExp(`\\b${keyword}\\b`, 'i');
-      return regex.test(text);
+      return new RegExp(`\\b${keyword.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i').test(text);
     }
     return text.includes(keyword);
   });
 }
 
-// Check if job was posted within active limit (default: 48 hours)
-function isFresh(postedDateStr, hoursCap = 48) {
+function isFresh(postedDateStr, hoursCap = 168) {
   try {
     const postedDate = new Date(postedDateStr);
-    const now = new Date();
-    const diffMs = now - postedDate;
-    const diffHours = diffMs / (1000 * 60 * 60);
+    if (Number.isNaN(postedDate.getTime())) return true;
+    const diffHours = (Date.now() - postedDate.getTime()) / (1000 * 60 * 60);
     return diffHours >= 0 && diffHours <= hoursCap;
-  } catch (err) {
-    return false;
+  } catch {
+    return true;
   }
 }
 
-export async function fetchJobs(user) {
-  console.log(`Starting job fetching process for user: ${user.email}...`);
-  const settings = await Settings.findOne({ userId: user._id });
-  if (!settings) {
-    console.error(`Settings not configured for user ${user.email}. Cannot filter jobs.`);
-    return { success: false, error: 'Settings not found' };
-  }
+function normalizeJob(job) {
+  return {
+    ...job,
+    status: job.status || 'pending',
+    email: job.email || null,
+    customized_pitch: job.customized_pitch || '',
+    company_url: job.company_url || null,
+    posted_at: job.posted_at || new Date(),
+  };
+}
 
-  const targetKeywords = settings.target_keywords || user.targetKeywords || 'WordPress, React, HTML, CSS, JavaScript, Node.js, Flutter';
-  console.log(`Target Niche Keywords: ${targetKeywords}`);
+/**
+ * Fetch REAL jobs from live RSS/APIs — no mock data, no invented URLs.
+ */
+export async function fetchJobsFromLiveAPIs(keywords, options = {}) {
+  const targetKeywords = normalizeKeywords(keywords);
+  const hoursCap = options.hoursCap ?? 168; // 7 days
+  const realJobs = [];
+  const allFreshJobs = [];
+  let totalFetched = 0;
 
-  const fetchedJobsList = [];
-  let stats = { totalFetched: 0, matched: 0, duplicatesSkipped: 0 };
+  console.log(`[Live Fetch] Keywords: ${targetKeywords}`);
 
-  // 1. Fetch from WeWorkRemotely RSS Feed
+  // 1. WeWorkRemotely
   try {
-    console.log('Fetching WeWorkRemotely RSS Feed...');
     const feed = await parser.parseURL('https://weworkremotely.com/remote-jobs.rss');
-    stats.totalFetched += feed.items.length;
-
+    totalFetched += feed.items.length;
     for (const item of feed.items) {
-      const id = generateJobId(item.link);
-      
-      // Check if already exists for this specific user
-      const existing = await Job.findOne({ id, userId: user._id });
-      if (existing) {
-        stats.duplicatesSkipped++;
-        continue;
-      }
-
-      if (!isFresh(item.pubDate, 48)) {
-        continue;
-      }
-
+      if (!item.link || !isFresh(item.pubDate, hoursCap)) continue;
       let title = item.title || '';
       let company = 'WeWorkRemotely Client';
       if (title.includes(':')) {
         const parts = title.split(':');
         company = parts[0].trim();
         title = parts.slice(1).join(':').trim();
-      } else if (item.creator) {
-        company = item.creator;
       }
-      
       const description = item.content || item.contentSnippet || '';
-      const url = item.link;
-
+      const job = normalizeJob({
+        id: generateJobId(item.link),
+        title,
+        company,
+        url: item.link,
+        description: description.substring(0, 500),
+        platform: 'WeWorkRemotely',
+        posted_at: new Date(item.pubDate),
+      });
+      allFreshJobs.push(job);
       if (matchesKeywords(title, description, targetKeywords)) {
-        fetchedJobsList.push({
-          id,
-          userId: user._id,
-          title,
-          company,
-          url,
-          description,
-          platform: 'WeWorkRemotely',
-          posted_at: new Date(item.pubDate)
-        });
-        stats.matched++;
+        realJobs.push(job);
       }
     }
   } catch (err) {
-    console.error('Error fetching WeWorkRemotely:', err.message);
+    console.error('[WeWorkRemotely]', err.message);
   }
 
-  // 2. Fetch from RemoteOK API
+  // 2. RemoteOK
   try {
-    console.log('Fetching RemoteOK API jobs...');
     const response = await fetch('https://remoteok.com/api', {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
-      }
+      headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' },
     });
-
     if (response.ok) {
       const data = await response.json();
-      const jobs = data.slice(1);
-      stats.totalFetched += jobs.length;
-
+      const jobs = (data || []).slice(1);
+      totalFetched += jobs.length;
       for (const job of jobs) {
-        if (!job.url) continue;
-        const id = generateJobId(job.url);
-
-        const existing = await Job.findOne({ id, userId: user._id });
-        if (existing) {
-          stats.duplicatesSkipped++;
-          continue;
-        }
-
-        if (!isFresh(job.date, 48)) {
-          continue;
-        }
-
-        const title = job.position;
-        const company = job.company || 'RemoteOK Client';
+        if (!job.url || !isFresh(job.date, hoursCap)) continue;
+        const title = job.position || '';
         const description = job.description || '';
-        const url = job.url;
-
+        const normalized = normalizeJob({
+          id: generateJobId(job.url),
+          title,
+          company: job.company || 'RemoteOK Client',
+          url: job.url,
+          description: description.substring(0, 500),
+          platform: 'RemoteOK',
+          posted_at: new Date(job.date),
+        });
+        allFreshJobs.push(normalized);
         if (matchesKeywords(title, description, targetKeywords)) {
-          fetchedJobsList.push({
-            id,
-            userId: user._id,
-            title,
-            company,
-            url,
-            description,
-            platform: 'RemoteOK',
-            posted_at: new Date(job.date)
-          });
-          stats.matched++;
+          realJobs.push(normalized);
         }
       }
-    } else {
-      console.warn(`RemoteOK API returned status ${response.status}`);
     }
   } catch (err) {
-    console.error('Error fetching RemoteOK:', err.message);
+    console.error('[RemoteOK]', err.message);
   }
 
-  // 3. Fetch from Remotive API
+  // 3. Remotive
   try {
-    console.log('Fetching Remotive API jobs...');
-    const response = await fetch('https://remotive.com/api/remote-jobs?category=software-dev', {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
-      }
+    const response = await fetch('https://remotive.com/api/remote-jobs?limit=50', {
+      headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' },
     });
-
     if (response.ok) {
       const data = await response.json();
       const jobs = data.jobs || [];
-      stats.totalFetched += jobs.length;
-
+      totalFetched += jobs.length;
       for (const job of jobs) {
-        if (!job.url) continue;
-        const id = generateJobId(job.url);
-
-        const existing = await Job.findOne({ id, userId: user._id });
-        if (existing) {
-          stats.duplicatesSkipped++;
-          continue;
-        }
-
-        if (!isFresh(job.publication_date, 48)) {
-          continue;
-        }
-
-        const title = job.title;
-        const company = job.company_name || 'Remotive Client';
+        if (!job.url || !isFresh(job.publication_date, hoursCap)) continue;
+        const title = job.title || '';
         const description = job.description || '';
-        const url = job.url;
-
+        const normalized = normalizeJob({
+          id: generateJobId(job.url),
+          title,
+          company: job.company_name || 'Remotive Client',
+          url: job.url,
+          description: description.substring(0, 500),
+          platform: 'Remotive',
+          posted_at: new Date(job.publication_date),
+        });
+        allFreshJobs.push(normalized);
         if (matchesKeywords(title, description, targetKeywords)) {
-          fetchedJobsList.push({
-            id,
-            userId: user._id,
-            title,
-            company,
-            url,
-            description,
-            platform: 'Remotive',
-            posted_at: new Date(job.publication_date)
-          });
-          stats.matched++;
+          realJobs.push(normalized);
         }
       }
-    } else {
-      console.warn(`Remotive API returned status ${response.status}`);
     }
   } catch (err) {
-    console.error('Error fetching Remotive:', err.message);
+    console.error('[Remotive]', err.message);
   }
 
-  // 4. Fetch from RemoteOK Web3 RSS Feed
+  // 4. Web3.Career RSS (optional — feed may be unavailable)
   try {
-    console.log('Fetching RemoteOK Web3 RSS Feed...');
-    const feed = await parser.parseURL('https://remoteok.com/remote-web3-jobs.rss');
-    stats.totalFetched += feed.items.length;
-
-    for (const item of feed.items) {
-      if (!item.link) continue;
-      const id = generateJobId(item.link);
-      
-      const existing = await Job.findOne({ id, userId: user._id });
-      if (existing) {
-        stats.duplicatesSkipped++;
-        continue;
-      }
-
-      const dateToCheck = item.isoDate || item.pubDate;
-      if (dateToCheck && !isFresh(dateToCheck, 48)) {
-        continue;
-      }
-
-      const cleanTitle = item.title ? item.title.trim() : '';
-      if (!cleanTitle) continue;
-
-      const company = extractCompanyFromLink(cleanTitle, item.link);
+    const feed = await parser.parseURL('https://web3.career/rss');
+    totalFetched += feed.items.length;
+    for (const item of feed.items.slice(0, 30)) {
+      if (!item.link || !isFresh(item.pubDate, hoursCap)) continue;
+      const title = item.title || '';
       const description = item.content || item.contentSnippet || '';
-      const url = item.link;
-
-      if (matchesKeywords(cleanTitle, description, targetKeywords)) {
-        fetchedJobsList.push({
-          id,
-          userId: user._id,
-          title: cleanTitle,
-          company,
-          url,
-          description,
-          platform: 'Web3 Jobs',
-          posted_at: new Date(dateToCheck || new Date())
-        });
-        stats.matched++;
+      const normalized = normalizeJob({
+        id: generateJobId(item.link),
+        title,
+        company: item.author || 'Web3 Company',
+        url: item.link,
+        description: description.substring(0, 500),
+        platform: 'Web3.Career',
+        posted_at: new Date(item.pubDate),
+      });
+      allFreshJobs.push(normalized);
+      if (matchesKeywords(title, description, targetKeywords)) {
+        realJobs.push(normalized);
       }
     }
   } catch (err) {
-    console.error('Error fetching RemoteOK Web3 feed:', err.message);
+    console.error('[Web3.Career]', err.message);
   }
 
-  // 5. Save matched jobs to Database
+  // If keyword filter is too strict, return recent real jobs anyway
+  const jobsToUse = realJobs.length > 0 ? realJobs : allFreshJobs.slice(0, 30);
+  const usedKeywordFallback = realJobs.length === 0 && allFreshJobs.length > 0;
+
+  // Deduplicate by URL
+  const uniqueJobs = [];
+  const seen = new Set();
+  for (const job of jobsToUse) {
+    if (!seen.has(job.url)) {
+      seen.add(job.url);
+      uniqueJobs.push(job);
+    }
+  }
+
+  uniqueJobs.sort((a, b) => new Date(b.posted_at) - new Date(a.posted_at));
+
+  console.log(`[Live Fetch] ${uniqueJobs.length} real jobs (from ${totalFetched} scanned)${usedKeywordFallback ? ' [keyword fallback]' : ''}`);
+
+  return {
+    jobs: uniqueJobs,
+    stats: {
+      totalFetched,
+      duplicatesSkipped: jobsToUse.length - uniqueJobs.length,
+      matchedAndScreened: uniqueJobs.length,
+      savedToDb: uniqueJobs.length,
+      keywordFallback: usedKeywordFallback,
+    },
+  };
+}
+
+export async function fetchJobs(user) {
+  console.log(`Starting job fetching for user: ${user.email}...`);
+
+  let settings = null;
+  try {
+    settings = await Settings.findOne({ userId: user._id });
+  } catch (err) {
+    console.warn('Settings lookup failed:', err.message);
+  }
+
+  const targetKeywords =
+    settings?.target_keywords ||
+    user.targetKeywords ||
+    process.env.DEFAULT_JOB_KEYWORDS ||
+    DEFAULT_KEYWORDS;
+
+  const { jobs: liveJobs, stats } = await fetchJobsFromLiveAPIs(targetKeywords);
+
+  if (liveJobs.length === 0) {
+    return {
+      success: true,
+      jobs: [],
+      stats,
+      message: 'No matching jobs found from live APIs. Try broader keywords in Config Panel.',
+    };
+  }
+
   let savedCount = 0;
-  for (const job of fetchedJobsList) {
+  for (const job of liveJobs) {
     try {
       await Job.findOneAndUpdate(
         { id: job.id, userId: user._id },
-        job,
+        { ...job, userId: user._id },
         { upsert: true, new: true }
       );
       savedCount++;
@@ -313,25 +300,21 @@ export async function fetchJobs(user) {
     }
   }
 
-  console.log(`Job fetching complete for user ${user.email}. Stats:`, {
-    totalFetched: stats.totalFetched,
-    duplicatesSkipped: stats.duplicatesSkipped,
-    matchedAndScreened: stats.matched,
-    savedToDb: savedCount
-  });
-
-  const pendingJobs = await Job.find({ userId: user._id, status: 'pending' })
-    .sort({ posted_at: -1 })
-    .lean();
+  let pendingJobs = liveJobs;
+  try {
+    pendingJobs = await Job.find({ userId: user._id, status: 'pending' })
+      .sort({ posted_at: -1 })
+      .lean();
+  } catch (err) {
+    console.warn('Could not read jobs from DB, returning live fetch results:', err.message);
+  }
 
   return {
     success: true,
     jobs: pendingJobs,
     stats: {
-      totalFetched: stats.totalFetched,
-      duplicatesSkipped: stats.duplicatesSkipped,
-      matchedAndScreened: stats.matched,
-      savedToDb: savedCount
-    }
+      ...stats,
+      savedToDb: savedCount,
+    },
   };
 }

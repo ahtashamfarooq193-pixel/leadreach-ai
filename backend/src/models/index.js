@@ -59,6 +59,7 @@ const JobSchema = new Schema({
   url: { type: String },
   company_url: { type: String },
   email: { type: String },
+  email_source: { type: String },
   description: { type: String },
   platform: { type: String },
   posted_at: { type: Date },

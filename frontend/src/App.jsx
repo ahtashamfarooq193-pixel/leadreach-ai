@@ -109,6 +109,16 @@ const POPULAR_COUNTIES = [
   { value: 'Peel Region, ON', label: 'Peel Region, ON (Mississauga, Brampton) 🇨🇦' }
 ];
 
+function isVerifiedEmail(email) {
+  if (!email || !email.includes('@')) return false;
+  const lower = email.toLowerCase();
+  const junk = [
+    'example.com', 'test.com', 'domain.com', 'email.com', 'company.com',
+    'yoursite.com', 'sample.com', 'placeholder.com', 'sentry.io', 'wixpress.com',
+  ];
+  return !junk.some((d) => lower.endsWith(d));
+}
+
 const DEMO_USER = {
   id: 'demo-user-001',
   name: 'Ahtasham Farooq',
@@ -758,19 +768,16 @@ export default function App() {
     }
   };
 
-  // Helper to extract email and set state
+  // Helper to extract email and set state (only verified addresses)
   const detectEmailInJob = (job) => {
-    if (job.email) {
+    if (job.email && isVerifiedEmail(job.email)) {
       setRecipientEmail(job.email);
       return;
     }
-    const emailRegex = /([a-zA-Z0-9._-]+@[a-zA-Z0-9._-]+\.[a-zA-Z0-9._-]+)/gi;
-    const match = job.description.match(emailRegex);
-    if (match && match.length > 0) {
-      setRecipientEmail(match[0]);
-    } else {
-      setRecipientEmail('');
-    }
+    const emailRegex = /([a-zA-Z0-9._+-]+@[a-zA-Z0-9._-]+\.[a-zA-Z]{2,})/gi;
+    const matches = job.description?.match(emailRegex) || [];
+    const realFromDesc = matches.find(isVerifiedEmail);
+    setRecipientEmail(realFromDesc || '');
   };
 
   // Trigger backend scraper to parse company website and extract direct email
@@ -789,9 +796,10 @@ export default function App() {
         setSelectedJob(updatedJob);
         if (updatedJob.email) {
           setRecipientEmail(updatedJob.email);
-          alert(`Success! Found and extracted direct company contact: ${updatedJob.email}`);
+          const src = updatedJob.email_source ? ` (source: ${updatedJob.email_source})` : '';
+          alert(`Found real contact email: ${updatedJob.email}${src}`);
         } else {
-          alert('Successfully scraped corporate site but no contact emails were found. You can still input one manually.');
+          alert('No real email found on the company website. We do not guess emails — try LinkedIn or enter manually.');
         }
       } else {
         const data = await res.json();

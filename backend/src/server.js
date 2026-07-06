@@ -2,14 +2,14 @@ import express from 'express';
 import cors from 'cors';
 import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
-import Parser from 'rss-parser';
 import { connectDB } from './db/mongodb.js';
 import { User, Settings, Job, LocalLead, OutreachLog, LoginLog, mongoose } from './models/index.js';
 import { requireAuth } from './middleware/auth.js';
-import { fetchJobs } from './jobs/fetcher.js';
+import { fetchJobs, fetchJobsFromLiveAPIs } from './jobs/fetcher.js';
 import { generatePitch, generateB2BPitch } from './services/ai.js';
 import { sendOutreachEmail, testSMTPConnection, getDailyOutreachStats } from './mailer/outreach.js';
 import { searchLocalLeads, scrapeBusinessContacts } from './services/localScraper.js';
+import { findAuthenticEmail } from './services/emailFinder.js';
 import { startScheduler, runUserAutomation } from './scheduler.js';
 import { config } from './config/index.js';
 import scraperRoutes from '../scraperRoutes.js';
@@ -176,172 +176,23 @@ app.use(async (req, res, next) => {
       return res.json(filtered);
     }
 
-    if (req.path === '/api/jobs/fetch') {
-      // REAL job fetching - connect to live job APIs
+    if (req.path === '/api/jobs/fetch' && req.method === 'POST') {
       try {
-        console.log('[Offline Mode] Fetching REAL jobs from live APIs...');
-        const parser = new Parser({
-          headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' }
-        });
-
-        let realJobs = [];
-        const keywords = 'React, Node.js, JavaScript, WordPress, Flutter, HTML, CSS, Python, TypeScript, Developer';
-
-        function matchesKeywords(text) {
-          const keywordArray = keywords.split(',').map(k => k.trim().toLowerCase());
-          return keywordArray.some(kw => text.toLowerCase().includes(kw));
-        }
-
-        // Fetch from WeWorkRemotely RSS
-        try {
-          const feed = await parser.parseURL('https://weworkremotely.com/remote-jobs.rss');
-          for (const item of feed.items.slice(0, 20)) {
-            const title = item.title?.split(':')[1]?.trim() || item.title;
-            if (matchesKeywords(title || '')) {
-              realJobs.push({
-                id: crypto.createHash('md5').update(item.link).digest('hex'),
-                title,
-                company: item.title?.split(':')[0]?.trim() || 'WeWork Client',
-                url: item.link,
-                platform: 'WeWorkRemotely',
-                description: (item.content || item.contentSnippet || '').substring(0, 300),
-                posted_at: new Date(item.pubDate),
-                email: ''
-              });
-            }
-          }
-        } catch (e) {
-          console.log('[WeWorkRemotely] Error:', e.message);
-        }
-
-        // Fetch from RemoteOK API
-        try {
-          const res = await fetch('https://remoteok.com/api');
-          const data = await res.json();
-          for (const job of (data || []).slice(1, 30)) {
-            if (matchesKeywords(job.position || '')) {
-              realJobs.push({
-                id: crypto.createHash('md5').update(job.url).digest('hex'),
-                title: job.position,
-                company: job.company || 'Remote Company',
-                url: job.url,
-                platform: 'RemoteOK',
-                description: (job.description || '').substring(0, 300),
-                posted_at: new Date(job.date),
-                email: ''
-              });
-            }
-          }
-        } catch (e) {
-          console.log('[RemoteOK] Error:', e.message);
-        }
-
-        // Fetch from Remotive API
-        try {
-          const res = await fetch('https://remotive.com/api/remote-jobs?limit=50');
-          const data = await res.json();
-          for (const job of (data?.jobs || []).slice(0, 30)) {
-            if (matchesKeywords(job.title || '')) {
-              realJobs.push({
-                id: crypto.createHash('md5').update(job.url).digest('hex'),
-                title: job.title,
-                company: job.company_name || 'Tech Company',
-                url: job.url,
-                platform: 'Remotive',
-                description: (job.description || '').substring(0, 300),
-                posted_at: new Date(job.published_at),
-                email: ''
-              });
-            }
-          }
-        } catch (e) {
-          console.log('[Remotive] Error:', e.message);
-        }
-
-        // Fetch from Web3 Jobs RSS
-        try {
-          const feed = await parser.parseURL('https://web3.career/feed');
-          for (const item of feed.items.slice(0, 20)) {
-            if (matchesKeywords(item.title || '')) {
-              realJobs.push({
-                id: crypto.createHash('md5').update(item.link).digest('hex'),
-                title: item.title,
-                company: item.author || 'Web3 Company',
-                url: item.link,
-                platform: 'Web3.Career',
-                description: (item.content || item.contentSnippet || '').substring(0, 300),
-                posted_at: new Date(item.pubDate),
-                email: ''
-              });
-            }
-          }
-        } catch (e) {
-          console.log('[Web3.Career] Error:', e.message);
-        }
-
-        // Fetch from Cryptocurrency Jobs
-        try {
-          const feed = await parser.parseURL('https://cryptocurrencyjobs.co/rss/');
-          for (const item of feed.items.slice(0, 20)) {
-            if (matchesKeywords(item.title || '')) {
-              realJobs.push({
-                id: crypto.createHash('md5').update(item.link).digest('hex'),
-                title: item.title,
-                company: item.author || 'Crypto Company',
-                url: item.link,
-                platform: 'Crypto Jobs',
-                description: (item.content || item.contentSnippet || '').substring(0, 300),
-                posted_at: new Date(item.pubDate),
-                email: ''
-              });
-            }
-          }
-        } catch (e) {
-          console.log('[Crypto Jobs] Error:', e.message);
-        }
-
-        // Remove duplicates and limit results
-        const uniqueJobs = [];
-        const seen = new Set();
-        for (const job of realJobs) {
-          if (!seen.has(job.url)) {
-            seen.add(job.url);
-            // Add required fields for frontend
-            job.status = 'pending';
-            job.customized_pitch = '';
-            job.company_url = job.company_url || job.url;
-            uniqueJobs.push(job);
-          }
-        }
-
-        // Store real jobs in memory so /api/jobs returns them
-        mockJobsList = uniqueJobs;
-
-        console.log(`[Offline Mode] Found ${uniqueJobs.length} real jobs`);
+        const keywords = mockSettingsObj.target_keywords || 'React, Node.js, JavaScript, WordPress, TypeScript, Developer';
+        const { jobs, stats } = await fetchJobsFromLiveAPIs(keywords);
+        mockJobsList = jobs;
+        console.log(`[Offline Mode] ${jobs.length} real jobs from live APIs`);
         return res.json({
           success: true,
-          jobs: uniqueJobs,
-          stats: {
-            totalFetched: realJobs.length,
-            duplicatesSkipped: realJobs.length - uniqueJobs.length,
-            matchedAndScreened: uniqueJobs.length,
-            savedToDb: uniqueJobs.length
-          },
-          message: `✅ Fetched ${uniqueJobs.length} REAL jobs from live APIs`
+          jobs,
+          stats,
+          message: jobs.length
+            ? `Fetched ${jobs.length} real jobs from live job boards`
+            : 'No matching jobs found — broaden keywords in Config Panel',
         });
       } catch (error) {
         console.error('[Offline Mode] Job fetch error:', error.message);
-        return res.json({
-          success: true,
-          jobs: [],
-          stats: {
-            totalFetched: 0,
-            duplicatesSkipped: 0,
-            matchedAndScreened: 0,
-            savedToDb: 0
-          },
-          message: 'Job APIs temporarily unavailable'
-        });
+        return res.status(500).json({ success: false, error: error.message, jobs: [] });
       }
     }
 
@@ -358,15 +209,21 @@ app.use(async (req, res, next) => {
       const job = jobIdx !== -1 ? mockJobsList[jobIdx] : null;
 
       if (action === 'extract-email') {
-        if (job) {
-          // Don't generate fake emails - if we can't find one, leave it empty
-          // User will see "Email not found" instead of a fake address
-          if (!job.email) {
-            job.email = null;  // Explicitly null, not a generated fake
+        if (!job) return res.status(404).json({ error: 'Job not found' });
+        try {
+          const companyUrl = await extractCompanyDomain(job);
+          if (!companyUrl) {
+            return res.status(400).json({ error: 'Could not find a real company website for this job' });
           }
-          job.company_url = job.company_url || 'https://' + job.company.toLowerCase().replace(/[^a-z0-9]/g, '') + '.com';
+          const resolved = await resolveJobEmail(job, companyUrl);
+          job.company_url = resolved.companyUrl;
+          job.email = resolved.email;
+          job.email_source = resolved.source;
+          mockJobsList[jobIdx] = job;
+        } catch (e) {
+          console.error('Mock extract-email failed:', e.message);
         }
-        return res.json(job || {});
+        return res.json(job);
       }
       
       if (action === 'pitch') {
@@ -416,18 +273,9 @@ ${mockSettingsObj.sender_name}`;
         let leads = await searchLocalLeads(niche, location, apiKey, source || 'google');
 
         const toScrape = leads.filter((l) => l.website && !l.email).slice(0, 8);
-        await Promise.all(
-          toScrape.map(async (lead) => {
-            try {
-              const contacts = await scrapeBusinessContacts(lead.website);
-              if (contacts.email) lead.email = contacts.email;
-              if (contacts.phone && !lead.phone) lead.phone = contacts.phone;
-              if (contacts.whatsapp) lead.whatsapp = contacts.whatsapp;
-            } catch (e) {
-              console.log(`Offline scrape skip:`, e.message);
-            }
-          })
-        );
+        const scraped = await Promise.all(toScrape.map((lead) => scrapeLeadContacts(lead)));
+        const scrapedMap = new Map(scraped.map((l) => [l.id, l]));
+        leads = leads.map((l) => scrapedMap.get(l.id) || l);
 
         mockLeadsList = [...leads, ...mockLeadsList.filter((l) => l.niche !== niche || l.location !== location)];
         console.log(`✅ B2B Search (offline DB): ${leads.length} leads for "${niche}" in "${location}"`);
@@ -914,6 +762,49 @@ async function extractCompanyDomain(job) {
   return null;
 }
 
+/** Scrape real email from company website — never invent addresses */
+async function resolveJobEmail(job, companyUrl) {
+  const contacts = await scrapeBusinessContacts(companyUrl);
+  if (contacts.email) {
+    return { email: contacts.email, source: 'website_scrape', companyUrl };
+  }
+
+  const found = await findAuthenticEmail({
+    website: companyUrl,
+    company_name: job.company,
+  });
+  if (found.email) {
+    return { email: found.email, source: found.source, companyUrl };
+  }
+
+  return { email: null, source: null, companyUrl };
+}
+
+async function scrapeLeadContacts(lead) {
+  if (!lead?.website) return lead;
+  const contacts = await scrapeBusinessContacts(lead.website);
+  let email = contacts.email;
+  let email_source = email ? 'website_scrape' : null;
+  if (!email) {
+    const found = await findAuthenticEmail({ website: lead.website, company_name: lead.name });
+    if (found.email) {
+      email = found.email;
+      email_source = found.source;
+    }
+  }
+  return {
+    ...lead,
+    email: email || null,
+    email_source,
+    phone: lead.phone || contacts.phone || null,
+    whatsapp: contacts.whatsapp || lead.whatsapp || null,
+    instagram_url: contacts.instagram || lead.instagram_url || null,
+    facebook_url: contacts.facebook || lead.facebook_url || null,
+    needs_optimization: contacts.needs_optimization ?? lead.needs_optimization,
+    optimization_reasons: contacts.optimization_reasons || lead.optimization_reasons || '',
+  };
+}
+
 app.post('/api/jobs/:id/extract-email', requireAuth, async (req, res) => {
   try {
     const job = await Job.findOne({ id: req.params.id, userId: req.user._id });
@@ -926,11 +817,15 @@ app.post('/api/jobs/:id/extract-email', requireAuth, async (req, res) => {
       return res.status(400).json({ error: 'Could not extract valid company website domain' });
     }
 
-    const contacts = await scrapeBusinessContacts(companyUrl);
-    
+    const resolved = await resolveJobEmail(job, companyUrl);
+
     const updatedJob = await Job.findOneAndUpdate(
       { id: req.params.id, userId: req.user._id },
-      { company_url: companyUrl, email: contacts.email || null },
+      {
+        company_url: resolved.companyUrl,
+        email: resolved.email,
+        email_source: resolved.source,
+      },
       { new: true }
     );
 
@@ -1109,22 +1004,10 @@ app.post('/api/local-leads/search', requireAuth, async (req, res) => {
     console.log(`B2B Lead Search: Niche="${niche}", Location="${location}" (User: ${req.user.email})`);
     let leads = await searchLocalLeads(niche, location, apiKey, source || 'google');
 
-    // Auto-scrape real emails from business websites (top 8 with sites)
     const toScrape = leads.filter((l) => l.website && !l.email).slice(0, 8);
-    await Promise.all(
-      toScrape.map(async (lead) => {
-        try {
-          const contacts = await scrapeBusinessContacts(lead.website);
-          if (contacts.email) lead.email = contacts.email;
-          if (contacts.phone && !lead.phone) lead.phone = contacts.phone;
-          if (contacts.whatsapp) lead.whatsapp = contacts.whatsapp;
-          if (contacts.instagram) lead.instagram_url = contacts.instagram;
-          if (contacts.facebook) lead.facebook_url = contacts.facebook;
-        } catch (e) {
-          console.log(`Scrape skip ${lead.website}:`, e.message);
-        }
-      })
-    );
+    const scraped = await Promise.all(toScrape.map((lead) => scrapeLeadContacts(lead)));
+    const scrapedMap = new Map(scraped.map((l) => [l.id, l]));
+    leads = leads.map((l) => scrapedMap.get(l.id) || l);
 
     let savedCount = 0;
     const dbOnline = mongoose.connection.readyState === 1;
@@ -1179,19 +1062,7 @@ app.post('/api/local-leads/:id/scrape', requireAuth, async (req, res) => {
     
     // Scrape the website for contacts
     console.log(`📧 Scraping ${lead.website} for contact info...`);
-    const contacts = await scrapeBusinessContacts(lead.website);
-    
-    // Update lead with scraped contact info
-    const updatedLead = {
-      ...lead,
-      email: contacts.email || lead.email,
-      phone: lead.phone || contacts.phone,
-      whatsapp: contacts.whatsapp || lead.whatsapp,
-      instagram_url: contacts.instagram || lead.instagram,
-      facebook_url: contacts.facebook || lead.facebook,
-      needs_optimization: contacts.needs_optimization || 0,
-      optimization_reasons: contacts.optimization_reasons || ''
-    };
+    const updatedLead = await scrapeLeadContacts(lead);
     
     // Try to update database but don't fail if it's offline
     try {

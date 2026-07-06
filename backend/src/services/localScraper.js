@@ -1,27 +1,5 @@
 import crypto from 'crypto';
 
-// Helper to generate common business email addresses for fallback
-function generateCommonBusinessEmails(website) {
-  if (!website) return [];
-  
-  try {
-    const url = new URL(website);
-    let domain = url.hostname;
-    
-    // Remove www. prefix if present for cleaner email
-    domain = domain.replace(/^www\./, '');
-    
-    const commonPrefixes = [
-      'info', 'contact', 'hello', 'support', 'sales', 'business',
-      'inquiry', 'team', 'hr', 'admin', 'mail'
-    ];
-    
-    return commonPrefixes.map(prefix => `${prefix}@${domain}`);
-  } catch (err) {
-    return [];
-  }
-}
-
 // Helper to validate if email is likely real (not fake pattern)
 function isLikelyRealEmail(email) {
   if (!email) return false;
