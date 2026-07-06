@@ -119,6 +119,21 @@ function isVerifiedEmail(email) {
   return !junk.some((d) => lower.endsWith(d));
 }
 
+function isVerifiedWebsite(url) {
+  if (!url || typeof url !== 'string') return false;
+  try {
+    const host = new URL(url.startsWith('http') ? url : `https://${url}`).hostname.toLowerCase();
+    const junkHosts = [
+      'yellowpages.com', 'yelp.com', 'trustpilot.com', 'bbb.org', 'facebook.com',
+      'instagram.com', 'linkedin.com', 'example.com', 'test.com', 'domain.com',
+      'company.com', 'google.com', 'bing.com', 'duckduckgo.com',
+    ];
+    return !junkHosts.some((d) => host === d || host.endsWith(`.${d}`));
+  } catch {
+    return false;
+  }
+}
+
 const DEMO_USER = {
   id: 'demo-user-001',
   name: 'Ahtasham Farooq',
@@ -2098,9 +2113,9 @@ export default function App() {
 
                             <div className="border-t border-slate-900/50 mt-2.5 pt-2 flex items-center justify-between text-[10px] text-slate-500 font-semibold">
                               <div className="flex gap-2">
-                                {lead.website ? (
+                                {lead.website && isVerifiedWebsite(lead.website) ? (
                                   <a href={lead.website} target="_blank" rel="noreferrer" className="flex items-center text-cyan-400/80 hover:underline">
-                                    <ExternalLink className="w-2.5 h-2.5 mr-0.5" /> Website
+                                    <ExternalLink className="w-2.5 h-2.5 mr-0.5" /> {lead.website_verified ? 'Verified Site' : 'Website'}
                                   </a>
                                 ) : (
                                   <span className="text-slate-600 line-through">No Website</span>

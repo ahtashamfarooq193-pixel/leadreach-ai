@@ -63,7 +63,203 @@ function isValidBusinessDomain(host) {
   return true;
 }
 
-// Helper to scrape a single webpage and extract email, phone, whatsapp, and social links
+/** Hosts that are directories, social profiles, or NOT a business's own website */
+const DIRECTORY_HOSTS = [
+  'yellowpages.com', 'yp.com', 'ypcdn.com', 'yelp.com', 'trustpilot.com',
+  'bbb.org', 'business.com', 'clutch.co', 'facebook.com', 'fb.com',
+  'instagram.com', 'linkedin.com', 'twitter.com', 'x.com', 'pinterest.com',
+  'tripadvisor.com', 'mapquest.com', 'foursquare.com', 'manta.com',
+  'superpages.com', 'hotfrog.com', 'angi.com', 'angieslist.com',
+  'homeadvisor.com', 'thumbtack.com', 'houzz.com', 'nextdoor.com',
+  'glassdoor.com', 'indeed.com', 'google.com', 'google.co', 'goo.gl',
+  'wikipedia.org', 'amazon.com', 'ebay.com', 'craigslist.org',
+  'duckduckgo.com', 'bing.com', 'yahoo.com', 'reddit.com', 'quora.com',
+  'example.com', 'test.com', 'domain.com', 'company.com', 'email.com',
+  'sentry.io', 'schema.org', 'w3.org', 'godaddy.com', 'squarespace.com',
+  'sites.google.com', 'blogspot.com', 'medium.com', 'tiktok.com',
+  'web3.career', 'remoteok.com', 'weworkremotely.com', 'remotive.com',
+];
+
+const PARKING_PAGE_PHRASES = [
+  'domain is for sale', 'buy this domain', 'this domain may be for sale',
+  'parked free', 'sedo parking', 'namecheap parking', 'godaddy parking',
+  'website expired', 'account suspended', 'this site is under construction',
+];
+
+function normalizeWebsiteUrl(rawUrl) {
+  if (!rawUrl || typeof rawUrl !== 'string') return null;
+  let url = rawUrl.trim();
+  if (!url.startsWith('http')) url = `https://${url}`;
+  try {
+    const parsed = new URL(url);
+    if (!['http:', 'https:'].includes(parsed.protocol)) return null;
+    if (!parsed.hostname || !parsed.hostname.includes('.')) return null;
+    return `${parsed.protocol}//${parsed.hostname}`;
+  } catch {
+    return null;
+  }
+}
+
+function isDirectoryOrThirdPartyUrl(url) {
+  try {
+    const host = new URL(url).hostname.toLowerCase().replace(/^www\./, '');
+    return DIRECTORY_HOSTS.some((d) => host === d || host.endsWith(`.${d}`));
+  } catch {
+    return true;
+  }
+}
+
+function cleanBusinessName(name) {
+  if (!name || typeof name !== 'string') return null;
+  const cleaned = name
+    .replace(/\s+/g, ' ')
+    .replace(/^(welcome to|home|official site of)\s+/i, '')
+    .trim()
+    .substring(0, 120);
+  return cleaned.length >= 2 ? cleaned : null;
+}
+
+function extractBusinessNameFromHtml(html) {
+  if (!html) return null;
+
+  const ogSite =
+    html.match(/property=["']og:site_name["'][^>]*content=["']([^"']+)["']/i) ||
+    html.match(/content=["']([^"']+)["'][^>]*property=["']og:site_name["']/i);
+  if (ogSite?.[1]) {
+    const name = cleanBusinessName(ogSite[1]);
+    if (name) return name;
+  }
+
+  const jsonLds = extractJsonLd(html);
+  for (const jsonLd of jsonLds) {
+    const types = Array.isArray(jsonLd['@type']) ? jsonLd['@type'] : [jsonLd['@type']];
+    if (
+      jsonLd.name &&
+      typeof jsonLd.name === 'string' &&
+      types.some((t) => /LocalBusiness|Organization|Store|ProfessionalService|Dentist|Medical/i.test(String(t)))
+    ) {
+      const name = cleanBusinessName(jsonLd.name);
+      if (name) return name;
+    }
+    if (jsonLd.name && typeof jsonLd.name === 'string') {
+      const name = cleanBusinessName(jsonLd.name);
+      if (name) return name;
+    }
+  }
+
+  const titleMatch = html.match(/<title[^>]*>([^<]+)<\/title>/i);
+  if (titleMatch?.[1]) {
+    const titlePart = titleMatch[1].split(/[|\-–—]/)[0].trim();
+    const name = cleanBusinessName(titlePart);
+    if (name) return name;
+  }
+
+  return null;
+}
+
+function isParkingOrPlaceholderPage(html) {
+  if (!html || html.length < 200) return true;
+  const lower = html.toLowerCase();
+  if (PARKING_PAGE_PHRASES.some((phrase) => lower.includes(phrase))) return true;
+  const textOnly = lower.replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim();
+  return textOnly.length < 80;
+}
+
+/** Verify URL is a live, real business website — not a directory link or parked domain */
+async function verifyRealBusinessWebsite(url, timeoutMs = 5000) {
+  const normalized = normalizeWebsiteUrl(url);
+  if (!normalized) return { valid: false, reason: 'invalid_url' };
+
+  const host = new URL(normalized).hostname.toLowerCase();
+  if (!isValidBusinessDomain(host)) return { valid: false, reason: 'invalid_domain' };
+  if (isDirectoryOrThirdPartyUrl(normalized)) return { valid: false, reason: 'directory_url' };
+
+  try {
+    const crawlResult = await scrapeUrl(normalized, timeoutMs);
+    if (!crawlResult.html || crawlResult.html.trim() === '') {
+      return { valid: false, reason: 'unreachable' };
+    }
+    if (isParkingOrPlaceholderPage(crawlResult.html)) {
+      return { valid: false, reason: 'parking_or_placeholder' };
+    }
+
+    return {
+      valid: true,
+      website: normalized,
+      html: crawlResult.html,
+      businessName: extractBusinessNameFromHtml(crawlResult.html),
+      email: crawlResult.email,
+      phone: crawlResult.phone,
+      instagram: crawlResult.instagram,
+      facebook: crawlResult.facebook,
+      crawlResult,
+    };
+  } catch {
+    return { valid: false, reason: 'fetch_error' };
+  }
+}
+
+async function validateLeadRecord(lead) {
+  if (!lead?.name) return null;
+
+  // Already verified during Google Places / free scraper fetch
+  if (lead.website_verified === true && lead.website) {
+    return {
+      ...lead,
+      rating: lead.rating ?? null,
+      reviews_count: lead.reviews_count ?? null,
+    };
+  }
+
+  // Google Places goldmine: real business name, no website yet
+  if (!lead.website) {
+    return {
+      ...lead,
+      website: null,
+      rating: lead.rating ?? null,
+      reviews_count: lead.reviews_count ?? null,
+      website_verified: false,
+    };
+  }
+
+  const verified = await verifyRealBusinessWebsite(lead.website);
+  if (!verified.valid) {
+    console.log(`❌ Rejected non-real website for "${lead.name}": ${lead.website} (${verified.reason})`);
+    return null;
+  }
+
+  return {
+    ...lead,
+    website: verified.website,
+    name: verified.businessName || lead.name,
+    email: lead.email || verified.email || null,
+    phone: lead.phone || verified.phone || null,
+    instagram_url: lead.instagram_url || verified.instagram || null,
+    facebook_url: lead.facebook_url || verified.facebook || null,
+    rating: lead.rating ?? null,
+    reviews_count: lead.reviews_count ?? null,
+    website_verified: true,
+  };
+}
+
+async function filterValidLeads(leads) {
+  const valid = [];
+  const seenDomains = new Set();
+
+  for (const lead of leads || []) {
+    const validated = await validateLeadRecord(lead);
+    if (!validated) continue;
+
+    const domainKey = validated.website || `no-website:${validated.name?.toLowerCase()}`;
+    if (seenDomains.has(domainKey)) continue;
+    seenDomains.add(domainKey);
+    valid.push(validated);
+    if (valid.length >= 15) break;
+  }
+
+  return valid;
+}
+
 async function scrapeUrl(url, timeoutMs = 8000) {
   try {
     const controller = new AbortController();
@@ -454,51 +650,55 @@ async function searchGooglePlaces(niche, location, apiKey) {
           const detailsData = await detailsRes.json();
           const details = detailsData.result || {};
           
-          const website = details.website || null;
-          
+          const rawWebsite = details.website || null;
+          let website = rawWebsite ? normalizeWebsiteUrl(rawWebsite) : null;
+          if (website && isDirectoryOrThirdPartyUrl(website)) {
+            console.log(`Skipping directory/social URL from Google Maps: ${website} for "${details.name}"`);
+            website = null;
+          }
+
           let needs_optimization = 0;
           let optimization_reasons = "";
+          let verifiedSite = null;
 
           if (!website) {
-            // Keep active business with NO website -> Goldmine lead!
             needs_optimization = 1;
             optimization_reasons = "No business website found on Google Maps (Needs a new website designed)";
           } else {
-            try {
-              const crawlResult = await scrapeUrl(website, 3500); // Fast 3.5s timeout
-              if (!crawlResult.html || crawlResult.html.trim() === '') {
-                console.log(`Skipping unreachable/dead website: ${website} for business "${details.name}"`);
-                continue;
-              }
-              const audit = analyzeWebsiteDesign(crawlResult.html, website);
+            verifiedSite = await verifyRealBusinessWebsite(website, 4000);
+            if (!verifiedSite.valid) {
+              console.log(`Skipping invalid/dead website from Google: ${website} for "${details.name}" (${verifiedSite.reason})`);
+              website = null;
+              needs_optimization = 1;
+              optimization_reasons = "Listed on Google Maps but website is unreachable or not a real business site";
+            } else {
+              website = verifiedSite.website;
+              const audit = analyzeWebsiteDesign(verifiedSite.html, website);
               if (audit.needs_optimization === 0) {
-                // Perfect modern website -> SKIP as per user request!
                 console.log(`Skipping modern website: ${website} for business "${details.name}"`);
                 continue;
               }
               needs_optimization = 1;
               optimization_reasons = audit.reasons.join(' | ');
-            } catch (err) {
-              console.log(`Skipping unreachable/dead website due to error: ${website} for business "${details.name}"`);
-              continue;
             }
           }
 
           leads.push({
-            id: generateLeadId(details.name, website),
-            name: details.name,
+            id: generateLeadId(details.name, website || place.place_id),
+            name: verifiedSite?.businessName || details.name,
             niche,
             location,
             website,
             phone: details.formatted_phone_number || place.formatted_phone_number || null,
-            email: null, // Scraped later
-            instagram_url: null, // Scraped later
-            facebook_url: null, // Scraped later
-            rating: details.rating || place.rating || 0,
-            reviews_count: details.user_ratings_total || place.user_ratings_total || 0,
+            email: null,
+            instagram_url: null,
+            facebook_url: null,
+            rating: details.rating || place.rating || null,
+            reviews_count: details.user_ratings_total || place.user_ratings_total || null,
             status: 'active',
             needs_optimization,
-            optimization_reasons
+            optimization_reasons,
+            website_verified: !!website,
           });
         }
       } catch (detailsErr) {
@@ -699,88 +899,50 @@ async function searchFreeScraper(niche, location) {
       const urlObj = new URL(fullUrl);
       const host = urlObj.hostname.toLowerCase();
       
-      // Exclude search engine pages, common directories, or social networks
-      if (
-        host.includes('google') ||
-        host.includes('youtube') ||
-        host.includes('linkedin') ||
-        host.includes('twitter') ||
-        host.includes('pinterest') ||
-        host.includes('instagram') ||
-        host.includes('facebook') ||
-        host.includes('yelp') ||
-        host.includes('yellowpages') ||
-        host.includes('tripadvisor') ||
-        host.includes('mapquest') ||
-        host.includes('wix') ||
-        host.includes('wordpress') ||
-        host.includes('duckduckgo') ||
-        host.includes('bing') ||
-        host.includes('yahoo')
-      ) {
+      if (!isValidBusinessDomain(host) || isDirectoryOrThirdPartyUrl(fullUrl)) {
         continue;
       }
 
-      const domain = urlObj.protocol + '//' + urlObj.hostname;
-      if (!domainList.has(domain) && domainList.size < 15) {
-        domainList.add(domain);
-        
-        // Generate a user-friendly name from domain
-        let name = urlObj.hostname.replace('www.', '').split('.')[0];
-        name = name.charAt(0).toUpperCase() + name.slice(1);
-
-        // Run quick design audit & validate website is active
-        let needs_optimization = 0;
-        let optimization_reasons = "";
-        let email = null;
-        let phone = null;
-        let instagram = null;
-        let facebook = null;
-        
-        try {
-          const crawlResult = await scrapeUrl(domain, 3500); // 3.5s timeout during search
-          if (!crawlResult.html || crawlResult.html.trim() === '') {
-            console.log(`Skipping unreachable/dead website: ${domain}`);
-            continue; // Skip lead if website is dead or unreachable
-          }
-          
-          // Extract contact data from the crawled website
-          email = crawlResult.email;
-          phone = crawlResult.phone;
-          instagram = crawlResult.instagram;
-          facebook = crawlResult.facebook;
-          
-          const audit = analyzeWebsiteDesign(crawlResult.html, domain);
-          if (audit.needs_optimization === 0) {
-            console.log(`Website is modern: ${domain} for business "${name}"`);
-            needs_optimization = 0;
-            optimization_reasons = "Website has modern design and mobile viewport settings";
-          } else {
-            needs_optimization = 1;
-            optimization_reasons = audit.reasons.join(' | ');
-          }
-        } catch (err) {
-          console.log(`Skipping unreachable/dead website due to error: ${domain}`);
-          continue; // Skip lead if website is dead or unreachable
-        }
-        
-        leads.push({
-          id: generateLeadId(name, domain),
-          name: `${name} Services`,
-          niche,
-          location,
-          website: domain,
-          phone: phone || null,
-          email: email || null,
-          instagram_url: instagram || null,
-          facebook_url: facebook || null,
-          rating: 4.2, // Default rating for real businesses (updated later if found)
-          reviews_count: Math.floor(Math.random() * 50) + 10, // Realistic review count
-          status: 'active',
-          needs_optimization,
-          optimization_reasons
-        });
+      const domain = normalizeWebsiteUrl(fullUrl);
+      if (!domain || domainList.has(domain) || domainList.size >= 15) {
+        continue;
       }
+
+      const verified = await verifyRealBusinessWebsite(domain, 4000);
+      if (!verified.valid) {
+        console.log(`Skipping non-real website from search: ${domain} (${verified.reason})`);
+        continue;
+      }
+
+      domainList.add(verified.website);
+
+      const businessName = verified.businessName || cleanBusinessName(host.replace(/^www\./, '').split('.')[0]);
+      if (!businessName) continue;
+
+      const audit = analyzeWebsiteDesign(verified.html, verified.website);
+      const needs_optimization = audit.needs_optimization === 0 ? 0 : 1;
+      const optimization_reasons =
+        audit.needs_optimization === 0
+          ? 'Website has modern design and mobile viewport settings'
+          : audit.reasons.join(' | ');
+
+      leads.push({
+        id: generateLeadId(businessName, verified.website),
+        name: businessName,
+        niche,
+        location,
+        website: verified.website,
+        phone: verified.phone || null,
+        email: verified.email || null,
+        instagram_url: verified.instagram || null,
+        facebook_url: verified.facebook || null,
+        rating: null,
+        reviews_count: null,
+        status: 'active',
+        needs_optimization,
+        optimization_reasons,
+        website_verified: true,
+      });
     } catch (e) {
       // Skip invalid URL
     }
@@ -1103,57 +1265,52 @@ async function searchMultiSourceScraper(niche, location, query, source) {
         ) {
           continue;
         }
-        finalWebsite = urlObj.protocol + '//' + urlObj.hostname;
-        let name = urlObj.hostname.replace('www.', '').split('.')[0];
-        businessName = name.charAt(0).toUpperCase() + name.slice(1) + ' Services';
-      }
-
-      // Check unique domain limit (Max 15 leads)
-      const parsedUrl = new URL(finalWebsite);
-      const domain = parsedUrl.protocol + '//' + parsedUrl.hostname;
-      
-      if (!domainList.has(domain) && domainList.size < 15) {
-        domainList.add(domain);
-
-        // Run design audit & validate website is active
-        let needs_optimization = 0;
-        let optimization_reasons = "";
-        try {
-          const crawlResult = await scrapeUrl(domain, 3500);
-          if (!crawlResult.html || crawlResult.html.trim() === '') {
-            console.log(`Skipping unreachable/dead website: ${domain}`);
-            continue; // Skip lead if website is dead/unreachable
-          }
-          const audit = analyzeWebsiteDesign(crawlResult.html, domain);
-          if (audit.needs_optimization === 0) {
-            needs_optimization = 0;
-            optimization_reasons = "Website has modern design and mobile viewport settings";
-          } else {
-            needs_optimization = 1;
-            optimization_reasons = audit.reasons.join(' | ');
-          }
-        } catch (err) {
-          console.log(`Skipping unreachable/dead website due to error: ${domain}`);
-          continue; // Skip lead if website is dead/unreachable
+        finalWebsite = normalizeWebsiteUrl(rawUrl);
+        if (!finalWebsite || !isValidBusinessDomain(new URL(finalWebsite).hostname)) {
+          continue;
         }
-
-        leads.push({
-          id: generateLeadId(businessName, domain),
-          name: businessName,
-          niche,
-          location,
-          website: domain,
-          phone: leadPhone,
-          email: null,
-          instagram_url: null,
-          facebook_url: null,
-          rating: null, // Real data only - no randomized fake numbers
-          reviews_count: null, // Real data only - no randomized fake numbers
-          status: 'active',
-          needs_optimization,
-          optimization_reasons
-        });
+        businessName = null; // resolved from verified site HTML
       }
+
+      if (!finalWebsite || isDirectoryOrThirdPartyUrl(finalWebsite)) continue;
+
+      const domain = normalizeWebsiteUrl(finalWebsite);
+      if (!domain || domainList.has(domain) || domainList.size >= 15) continue;
+
+      const verified = await verifyRealBusinessWebsite(domain, 4000);
+      if (!verified.valid) {
+        console.log(`Skipping non-real website in multi-source: ${domain} (${verified.reason})`);
+        continue;
+      }
+
+      domainList.add(verified.website);
+      const resolvedName = verified.businessName || businessName;
+      if (!resolvedName) continue;
+
+      const audit = analyzeWebsiteDesign(verified.html, verified.website);
+      const needs_optimization = audit.needs_optimization === 0 ? 0 : 1;
+      const optimization_reasons =
+        audit.needs_optimization === 0
+          ? 'Website has modern design and mobile viewport settings'
+          : audit.reasons.join(' | ');
+
+      leads.push({
+        id: generateLeadId(resolvedName, verified.website),
+        name: resolvedName,
+        niche,
+        location,
+        website: verified.website,
+        phone: leadPhone || verified.phone || null,
+        email: verified.email || null,
+        instagram_url: verified.instagram || null,
+        facebook_url: verified.facebook || null,
+        rating: null,
+        reviews_count: null,
+        status: 'active',
+        needs_optimization,
+        optimization_reasons,
+        website_verified: true,
+      });
     } catch (e) {
       // Ignore errors on specific rawUrl iterations
     }
@@ -1500,7 +1657,7 @@ async function scrapeTwitterHashtags(niche, location) {
         email: null,
         instagram_url: null,
         facebook_url: null,
-        rating: rating || 4.5, // Yelp businesses usually have decent ratings
+        rating: rating ?? null,
         reviews_count: null,
         status: 'active'
       });
@@ -1556,8 +1713,9 @@ export async function searchLocalLeads(niche, location, apiKey = null, source = 
     try {
       const googleLeads = await searchGooglePlaces(cleanNiche, cleanLocation, effectiveApiKey);
       if (googleLeads?.length > 0) {
-        console.log(`✅ Google Places: ${googleLeads.length} real businesses`);
-        return googleLeads;
+        const validated = await filterValidLeads(googleLeads);
+        console.log(`✅ Google Places: ${validated.length} verified real businesses`);
+        if (validated.length > 0) return validated;
       }
     } catch (err) {
       console.log(`⚠️ Google Places failed:`, err.message);
@@ -1569,8 +1727,9 @@ export async function searchLocalLeads(niche, location, apiKey = null, source = 
     try {
       const freeLeads = await searchFreeScraper(cleanNiche, cleanLocation);
       if (freeLeads?.length > 0) {
-        console.log(`✅ Free scraper: ${freeLeads.length} businesses`);
-        return freeLeads;
+        const validated = await filterValidLeads(freeLeads);
+        console.log(`✅ Free scraper: ${validated.length} verified businesses`);
+        if (validated.length > 0) return validated;
       }
     } catch (err) {
       console.log(`⚠️ Free scraper failed:`, err.message);
@@ -1583,8 +1742,9 @@ export async function searchLocalLeads(niche, location, apiKey = null, source = 
     try {
       const realLeads = await searchAllSources(cleanNiche, cleanLocation);
       if (realLeads?.length > 0) {
-        console.log(`✅ Multi-source: ${realLeads.length} leads`);
-        return realLeads;
+        const validated = await filterValidLeads(realLeads);
+        console.log(`✅ Multi-source: ${validated.length} verified leads`);
+        if (validated.length > 0) return validated;
       }
     } catch (err) {
       console.log(`⚠️ Multi-source failed:`, err.message);
